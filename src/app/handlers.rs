@@ -356,7 +356,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::reply_to_comment(&repo, pr, comment_id, &body).await {
                 Ok(()) => {
-                    let _ = tx.send(AppEvent::ReviewSubmitted);
+                    let _ = tx.send(AppEvent::ReplyPosted);
                     if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
                         let _ = tx.send(AppEvent::CommentsLoaded { pr, data: comments });
                     }

@@ -310,6 +310,9 @@ impl App {
                 self.rebuild_display();
                 self.reload_comments_and_threads();
             }
+            AppEvent::ReplyPosted => {
+                self.status.success("Reply posted!");
+            }
             AppEvent::CustomActionComplete {
                 description,
                 result,
