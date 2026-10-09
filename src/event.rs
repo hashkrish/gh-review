@@ -41,7 +41,9 @@ pub enum AppEvent {
     ThreadResolveToggled,
     ReviewDismissed,
     SuggestionAccepted,
-    ReviewSubmitted,
+    ReviewSubmitted {
+        pr: u64,
+    },
     ReplyPosted,
     StackPrefetchLoaded(std::collections::HashMap<u64, crate::stack::PrSnapshot>),
     CustomActionComplete {

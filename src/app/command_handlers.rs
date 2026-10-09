@@ -381,6 +381,7 @@ pub fn discard(app: &mut App) {
         && pt.pending_idx < app.pending_comments.len()
     {
         app.pending_comments.remove(pt.pending_idx);
+        app.persist_drafts();
         app.rebuild_display();
     }
 }

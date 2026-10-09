@@ -133,6 +133,7 @@ impl App {
                     if let Some(pc) = self.pending_comments.get_mut(idx) {
                         pc.body = body;
                     }
+                    self.persist_drafts();
                     self.rebuild_display();
                 } else {
                     let final_body = if self.comment_input.is_suggestion {
@@ -148,6 +149,7 @@ impl App {
                         start_line: self.comment_input.start_line,
                         start_side: self.comment_input.start_side,
                     });
+                    self.persist_drafts();
                     self.rebuild_display();
                 }
             }
@@ -337,7 +339,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::submit_review(&repo, pr, event, &body, &comments).await {
                 Ok(()) => {
-                    let _ = tx.send(AppEvent::ReviewSubmitted);
+                    let _ = tx.send(AppEvent::ReviewSubmitted { pr });
                 }
                 Err(e) => {
                     let _ = tx.send(AppEvent::Error(format!("Submit failed: {e}")));

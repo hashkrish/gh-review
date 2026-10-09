@@ -112,6 +112,7 @@ impl App {
         if !keymap.warnings.is_empty() {
             status.error(format!("Config: {}", keymap.warnings.join("; ")));
         }
+        let pending_comments = load_drafts(&repo, pr_number, &mut status);
 
         Self {
             repo,
@@ -120,7 +121,7 @@ impl App {
             files: Vec::new(),
             existing_comments: Vec::new(),
             review_body_comments: Vec::new(),
-            pending_comments: Vec::new(),
+            pending_comments,
             thread_map: HashMap::new(),
             file_picker: FilePicker::new(),
             diff_view: DiffView::new(),
@@ -304,11 +305,18 @@ impl App {
             } => {
                 self.expand_context(&path, &base_content, &head_content);
             }
-            AppEvent::ReviewSubmitted => {
+            AppEvent::ReviewSubmitted { pr } => {
                 self.status.success("Review submitted!");
-                self.pending_comments.clear();
-                self.rebuild_display();
-                self.reload_comments_and_threads();
+                if pr == self.pr_number {
+                    self.pending_comments.clear();
+                    self.rebuild_display();
+                    self.reload_comments_and_threads();
+                }
+                // Cached snapshots reload drafts from disk, so clearing the file
+                // also covers a PR the user navigated away from mid-submit.
+                if let Err(e) = crate::drafts::save(&self.repo, pr, &[]) {
+                    self.status.error(format!("Failed to clear drafts: {e}"));
+                }
             }
             AppEvent::ReplyPosted => {
                 self.status.success("Reply posted!");
@@ -326,6 +334,13 @@ impl App {
             }
         }
         self.pending_action.take().unwrap_or(Action::None)
+    }
+
+    /// Write the current PR's pending comments to disk.
+    pub(crate) fn persist_drafts(&mut self) {
+        if let Err(e) = crate::drafts::save(&self.repo, self.pr_number, &self.pending_comments) {
+            self.status.error(format!("Failed to save drafts: {e}"));
+        }
     }
 
     pub(crate) fn rebuild_display(&mut self) {
@@ -418,7 +433,8 @@ impl App {
             self.files = snapshot.files;
             self.existing_comments = snapshot.comments;
             self.review_body_comments = snapshot.review_body_comments;
-            self.pending_comments = snapshot.pending_comments;
+            // Disk is the source of truth; prefetched snapshots never carry drafts.
+            self.pending_comments = load_drafts(&self.repo, pr_number, &mut self.status);
             self.thread_map = snapshot.threads;
             self.file_picker.set_files(&self.files);
             self.diff_view = crate::components::diff_view::DiffView::new();
@@ -449,7 +465,7 @@ impl App {
             self.files.clear();
             self.existing_comments.clear();
             self.review_body_comments.clear();
-            self.pending_comments.clear();
+            self.pending_comments = load_drafts(&self.repo, pr_number, &mut self.status);
             self.thread_map.clear();
             self.file_picker.set_files(&self.files);
             self.diff_view = crate::components::diff_view::DiffView::new();
@@ -485,5 +501,20 @@ impl App {
             }
         });
         self.reload_threads();
+    }
+}
+
+fn load_drafts(repo: &str, pr: u64, status: &mut StatusLine) -> Vec<ReviewComment> {
+    match crate::drafts::load(repo, pr) {
+        Ok(drafts) => {
+            if !drafts.is_empty() {
+                status.info(format!("Restored {} pending comment(s)", drafts.len()));
+            }
+            drafts
+        }
+        Err(e) => {
+            status.error(format!("Failed to load drafts: {e}"));
+            Vec::new()
+        }
     }
 }

@@ -61,6 +61,7 @@ pub fn handle_action(
                         start_line,
                         start_side,
                     });
+                    app.persist_drafts();
                     app.rebuild_display();
                     app.status.success("Suggestion added");
                 }

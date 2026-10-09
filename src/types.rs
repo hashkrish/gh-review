@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CommentState {
@@ -114,13 +114,13 @@ pub struct DiffLine {
     pub highlighted_content: Option<ratatui::text::Line<'static>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Side {
     Left,
     Right,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewComment {
     pub path: String,
     pub line: usize,

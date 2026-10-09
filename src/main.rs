@@ -4,6 +4,7 @@ mod components;
 mod config;
 mod diff;
 mod dirs;
+mod drafts;
 mod editor;
 mod event;
 mod gh;

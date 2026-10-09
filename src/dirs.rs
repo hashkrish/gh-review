@@ -18,7 +18,8 @@ pub fn cache_dir() -> PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join(APP))
 }
 
-#[allow(dead_code)]
+/// Persistent app state, e.g. unsubmitted review drafts.
+/// `~/.local/state/gh-review/` on Linux.
 pub fn state_dir() -> PathBuf {
     project_dirs()
         .map(|d| {
