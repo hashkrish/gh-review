@@ -77,6 +77,7 @@ impl App {
         }
         self.diff_view.ensure_visible(diff_height);
 
+        self.sync_file_picker_to_cursor();
         if files_open {
             self.file_picker.draw(
                 content_layout[0],

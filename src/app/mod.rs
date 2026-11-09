@@ -4,6 +4,8 @@ pub(crate) mod custom_action;
 mod draft_sync;
 mod handlers;
 pub(crate) mod keymap;
+#[cfg(test)]
+mod panel_sync_tests;
 mod ui;
 mod viewed_sync;
 
@@ -501,6 +503,20 @@ impl App {
             self.loading = true;
             self.status.info(format!("Loading PR #{pr_number}..."));
             self.start_loading();
+        }
+    }
+
+    /// Keep the file list's selection on the file under the diff cursor, so
+    /// the panel follows along as you scroll. Skipped while the list has focus
+    /// or is being filtered: its own selection drives the diff then.
+    pub(crate) fn sync_file_picker_to_cursor(&mut self) {
+        if self.focus == Focus::FilePicker || self.file_picker.is_filter_active() {
+            return;
+        }
+        if let Some(idx) = self.diff_view.current_file_idx()
+            && idx < self.file_picker.files.len()
+        {
+            self.file_picker.selected = idx;
         }
     }
 
