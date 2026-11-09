@@ -8,3 +8,4 @@ pub mod review_bar;
 pub mod review_confirm;
 pub mod search_bar;
 pub mod status_line;
+pub mod sync_conflict;

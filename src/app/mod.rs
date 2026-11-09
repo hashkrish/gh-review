@@ -1,6 +1,7 @@
 pub(crate) mod command;
 mod command_handlers;
 pub(crate) mod custom_action;
+mod draft_sync;
 mod handlers;
 pub(crate) mod keymap;
 mod ui;
@@ -16,7 +17,8 @@ use crate::components::review_confirm::ReviewConfirm;
 use crate::components::search_bar::SearchBar;
 use crate::components::status_line::StatusLine;
 use crate::event::AppEvent;
-use std::collections::HashMap;
+use crate::sync::{Conflict, SyncOp};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::config::{Config, load_user_config};
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
@@ -84,6 +86,13 @@ pub struct App {
     pub(crate) pending_comments: Vec<ReviewComment>,
     pub(crate) thread_map: HashMap<u64, ThreadInfo>,
 
+    // Two-way sync of drafts with GitHub's pending review (see `crate::sync`).
+    pub(crate) sync_tx: mpsc::UnboundedSender<SyncOp>,
+    pub(crate) next_local_id: u64,
+    /// Node ids of drafts deleted locally; never re-imported from GitHub.
+    pub(crate) tombstones: HashSet<String>,
+    pub(crate) sync_conflicts: VecDeque<Conflict>,
+
     pub(crate) file_picker: FilePicker,
     pub(crate) file_panel_visible: bool,
     pub(crate) diff_view: DiffView,
@@ -121,6 +130,12 @@ impl App {
             status.error(format!("Config: {}", keymap.warnings.join("; ")));
         }
 
+        let (sync_tx, sync_rx) = mpsc::unbounded_channel();
+        // The worker needs a runtime; without one (unit tests) ops are dropped.
+        if tokio::runtime::Handle::try_current().is_ok() {
+            crate::sync::spawn_worker(repo.clone(), sync_rx, tx.clone());
+        }
+
         Self {
             repo,
             pr_number,
@@ -130,6 +145,10 @@ impl App {
             review_body_comments: Vec::new(),
             pending_comments: Vec::new(),
             thread_map: HashMap::new(),
+            sync_tx,
+            next_local_id: 1,
+            tombstones: HashSet::new(),
+            sync_conflicts: VecDeque::new(),
             file_picker: FilePicker::new(),
             file_panel_visible: true,
             diff_view: DiffView::new(),
@@ -161,6 +180,8 @@ impl App {
     pub fn start_loading(&self) {
         let repo = self.repo.clone();
         let pr = self.pr_number;
+
+        self.request_pull(pr);
 
         {
             let tx = self.tx.clone();
@@ -313,9 +334,16 @@ impl App {
             } => {
                 self.expand_context(&path, &base_content, &head_content);
             }
+            AppEvent::Sync(event) => self.handle_sync_event(event),
+            AppEvent::ReplyPosted => {
+                self.status.success("Reply posted");
+                self.reload_comments_and_threads();
+            }
             AppEvent::ReviewSubmitted => {
                 self.status.success("Review submitted!");
                 self.pending_comments.clear();
+                self.tombstones.clear();
+                self.sync_conflicts.clear();
                 self.rebuild_display();
                 self.reload_comments_and_threads();
             }
@@ -431,6 +459,7 @@ impl App {
             self.rebuild_display();
             self.stack.current_pr = pr_number;
             self.loading = false;
+            self.request_pull(pr_number);
             true
         } else {
             false

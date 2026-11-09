@@ -139,6 +139,17 @@ In the file picker, `/` opens a fuzzy file filter instead.
 
 Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
 
+#### Pending review sync
+
+Your draft comments are kept in sync with your pending review on GitHub, in both directions:
+
+- Adding, editing, or discarding a draft updates your pending review on GitHub immediately, so it also shows up on github.com and in other clients.
+- Drafts created or changed on GitHub are pulled in when a PR opens, and again with `:sync_drafts`.
+- If the same comment was edited on both sides (or deleted on GitHub but edited here), a prompt shows both versions: `l` keeps yours, `g` keeps GitHub's, `Esc` decides later. Submitting is blocked until conflicts are resolved.
+- If a push fails (for example, you're offline), the draft stays local and is retried on the next sync or when you submit.
+
+GitHub allows one pending review per user per PR, and only shows it to you. Submitting from gh-review submits that pending review, including any comments you added to it on github.com.
+
 ### Other
 
 | Key | Action |

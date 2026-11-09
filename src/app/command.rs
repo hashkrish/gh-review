@@ -96,6 +96,7 @@ define_commands! {
     collapse_all_comments,"Collapse all comment threads", true;
     file_filter,          "Filter file list",              false;
     toggle_file_panel,    "Toggle file list panel",        true;
+    sync_drafts,          "Sync drafts with GitHub pending review", true;
     open_command_mode,    "Open command prompt",            false;
     fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;

@@ -129,6 +129,17 @@ impl App {
             self.review_confirm.draw(size, frame.buffer_mut());
         }
 
+        if self.conflict_prompt_active()
+            && let Some(conflict) = self.sync_conflicts.front()
+        {
+            crate::components::sync_conflict::draw(
+                size,
+                frame.buffer_mut(),
+                conflict,
+                self.sync_conflicts.len(),
+            );
+        }
+
         if self.show_help {
             let custom_help = self.keymap.custom_action_help();
             HelpOverlay::draw(

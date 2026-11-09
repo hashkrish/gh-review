@@ -128,6 +128,51 @@ pub struct ReviewComment {
     pub body: String,
     pub start_line: Option<usize>,
     pub start_side: Option<Side>,
+    /// Stable id for this draft within the session; lets async sync results
+    /// find the draft even after edits or deletions shift list indices.
+    pub local_id: u64,
+    /// GraphQL node id of the matching comment on GitHub's pending review,
+    /// once the draft has been pushed (or imported).
+    pub node_id: Option<String>,
+    /// Body as last seen identical on both sides. Comparing it with the local
+    /// and remote bodies tells us which side has changed since the last sync.
+    pub synced_body: Option<String>,
+}
+
+impl ReviewComment {
+    /// A new, not-yet-synced draft. `App::add_draft` assigns `local_id`.
+    pub fn new_local(
+        path: String,
+        line: usize,
+        side: Side,
+        body: String,
+        start_line: Option<usize>,
+        start_side: Option<Side>,
+    ) -> Self {
+        Self {
+            path,
+            line,
+            side,
+            body,
+            start_line,
+            start_side,
+            local_id: 0,
+            node_id: None,
+            synced_body: None,
+        }
+    }
+}
+
+/// An inline comment on the viewer's pending review as stored on GitHub.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RemoteDraft {
+    pub node_id: String,
+    pub path: String,
+    pub line: usize,
+    pub side: Side,
+    pub body: String,
+    pub start_line: Option<usize>,
+    pub start_side: Option<Side>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

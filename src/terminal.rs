@@ -53,14 +53,9 @@ pub fn handle_action(
             match result {
                 Ok(edited) if edited.trim() != content.trim() => {
                     let body = format!("```suggestion\n{edited}```");
-                    app.pending_comments.push(types::ReviewComment {
-                        path: file_path,
-                        line,
-                        side,
-                        body,
-                        start_line,
-                        start_side,
-                    });
+                    app.add_draft(types::ReviewComment::new_local(
+                        file_path, line, side, body, start_line, start_side,
+                    ));
                     app.rebuild_display();
                     app.status.success("Suggestion added");
                 }

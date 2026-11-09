@@ -10,6 +10,7 @@ mod gh;
 mod highlight;
 mod search;
 pub mod stack;
+mod sync;
 mod terminal;
 mod theme;
 mod types;

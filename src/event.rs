@@ -42,6 +42,8 @@ pub enum AppEvent {
     ReviewDismissed,
     SuggestionAccepted,
     ReviewSubmitted,
+    ReplyPosted,
+    Sync(crate::sync::SyncEvent),
     StackPrefetchLoaded(std::collections::HashMap<u64, crate::stack::PrSnapshot>),
     CustomActionComplete {
         description: String,

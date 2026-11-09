@@ -195,4 +195,8 @@ impl PrCache {
     pub fn contains(&self, pr_number: u64) -> bool {
         self.entries.contains_key(&pr_number)
     }
+
+    pub fn get_mut(&mut self, pr_number: u64) -> Option<&mut PrSnapshot> {
+        self.entries.get_mut(&pr_number)
+    }
 }

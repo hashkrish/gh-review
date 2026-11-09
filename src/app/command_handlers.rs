@@ -394,9 +394,14 @@ pub fn discard(app: &mut App) {
     if let Some(pt) = app.diff_view.pending_comment_at_cursor()
         && pt.pending_idx < app.pending_comments.len()
     {
-        app.pending_comments.remove(pt.pending_idx);
+        app.remove_draft(pt.pending_idx);
         app.rebuild_display();
     }
+}
+
+pub fn sync_drafts(app: &mut App) {
+    app.status.info("Syncing pending review...");
+    app.request_pull(app.pr_number);
 }
 
 pub fn resolve(app: &mut App) {
