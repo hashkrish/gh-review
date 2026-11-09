@@ -97,6 +97,7 @@ gh-dash (browse PRs)
 | `h` / `←` | Focus previous panel |
 | `l` / `→` | Focus next panel |
 | `Tab` | Cycle panel focus |
+| `Enter` | In the file list: move focus to the diff |
 | `Esc` | Close description panel (when focused) |
 | `b` | Toggle file list panel |
 

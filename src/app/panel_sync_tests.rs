@@ -34,6 +34,35 @@ fn app_with_three_files() -> App {
     app
 }
 
+fn press(app: &mut App, code: crossterm::event::KeyCode) {
+    app.handle_key(crossterm::event::KeyEvent::new(
+        code,
+        crossterm::event::KeyModifiers::NONE,
+    ));
+}
+
+#[test]
+fn enter_in_the_file_list_moves_focus_to_the_diff() {
+    let mut app = app_with_three_files();
+    app.focus = Focus::FilePicker;
+    app.file_picker.selected = 1;
+
+    press(&mut app, crossterm::event::KeyCode::Enter);
+
+    assert_eq!(app.focus, Focus::DiffView);
+    assert_eq!(app.file_picker.selected, 1);
+}
+
+#[test]
+fn enter_in_the_diff_does_not_change_focus() {
+    let mut app = app_with_three_files();
+    app.focus = Focus::DiffView;
+
+    press(&mut app, crossterm::event::KeyCode::Enter);
+
+    assert_eq!(app.focus, Focus::DiffView);
+}
+
 #[test]
 fn selection_follows_the_diff_cursor() {
     let mut app = app_with_three_files();

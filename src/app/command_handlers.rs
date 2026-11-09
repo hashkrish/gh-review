@@ -194,6 +194,10 @@ pub fn prev_panel(app: &mut App) {
     app.focus = app.focus.prev(desc_open, files_open);
 }
 
+pub fn focus_diff(app: &mut App) {
+    app.focus = super::Focus::DiffView;
+}
+
 pub fn toggle_file_panel(app: &mut App) {
     if app.file_panel_visible {
         app.file_panel_visible = false;

@@ -645,6 +645,7 @@ impl Keymap {
             B::diff(&command::next_match_or_file, vec![Single('n'.into())]),
             B::diff(&command::prev_match_or_file, vec![Single('N'.into())]),
             B::picker(&command::file_filter, vec![Single('/'.into())]),
+            B::picker(&command::focus_diff, vec![Single(KeyCode::Enter.into())]),
         ]);
 
         // ── Jumps (diff + description) ────────────────────────────────

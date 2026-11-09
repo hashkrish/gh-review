@@ -119,6 +119,7 @@ Only include the ones you want to change.
 | `switch_focus`        | `Tab`             | Cycle panel focus                 |
 | `next_panel`          | `l`, `Right`      | Focus next panel                  |
 | `prev_panel`          | `h`, `Left`       | Focus previous panel              |
+| `focus_diff`          | `Enter` (file list) | Move focus to the diff panel    |
 | `toggle_view`         | `t`               | Toggle unified / side-by-side     |
 | `toggle_file_panel`   | `b`               | Toggle file list panel            |
 | `toggle_comment`      | `Enter`           | Toggle comment expand             |
