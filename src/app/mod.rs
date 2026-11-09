@@ -30,22 +30,29 @@ pub(crate) enum Focus {
 }
 
 impl Focus {
-    pub fn next(self, desc_open: bool) -> Self {
-        match self {
-            Focus::FilePicker => Focus::DiffView,
-            Focus::DiffView if desc_open => Focus::Description,
-            Focus::DiffView => Focus::FilePicker,
-            Focus::Description => Focus::FilePicker,
+    /// Visible panels in left-to-right order; focus cycles through these.
+    fn cycle(desc_open: bool, files_open: bool) -> Vec<Self> {
+        let mut panels = Vec::with_capacity(3);
+        if files_open {
+            panels.push(Focus::FilePicker);
         }
+        panels.push(Focus::DiffView);
+        if desc_open {
+            panels.push(Focus::Description);
+        }
+        panels
     }
 
-    pub fn prev(self, desc_open: bool) -> Self {
-        match self {
-            Focus::FilePicker if desc_open => Focus::Description,
-            Focus::FilePicker => Focus::DiffView,
-            Focus::DiffView => Focus::FilePicker,
-            Focus::Description => Focus::DiffView,
-        }
+    pub fn next(self, desc_open: bool, files_open: bool) -> Self {
+        let panels = Self::cycle(desc_open, files_open);
+        let idx = panels.iter().position(|p| *p == self).unwrap_or(0);
+        panels[(idx + 1) % panels.len()]
+    }
+
+    pub fn prev(self, desc_open: bool, files_open: bool) -> Self {
+        let panels = Self::cycle(desc_open, files_open);
+        let idx = panels.iter().position(|p| *p == self).unwrap_or(0);
+        panels[(idx + panels.len() - 1) % panels.len()]
     }
 }
 
@@ -78,6 +85,7 @@ pub struct App {
     pub(crate) thread_map: HashMap<u64, ThreadInfo>,
 
     pub(crate) file_picker: FilePicker,
+    pub(crate) file_panel_visible: bool,
     pub(crate) diff_view: DiffView,
     pub(crate) description_panel: DescriptionPanel,
     pub(crate) stack: crate::stack::StackState,
@@ -123,6 +131,7 @@ impl App {
             pending_comments: Vec::new(),
             thread_map: HashMap::new(),
             file_picker: FilePicker::new(),
+            file_panel_visible: true,
             diff_view: DiffView::new(),
             description_panel: DescriptionPanel::new(),
             stack: crate::stack::StackState::empty(),
@@ -482,5 +491,33 @@ impl App {
             }
         });
         self.reload_threads();
+    }
+}
+
+#[cfg(test)]
+mod focus_tests {
+    use super::Focus::{DiffView, Description, FilePicker};
+
+    #[test]
+    fn cycles_all_visible_panels() {
+        assert_eq!(FilePicker.next(true, true), DiffView);
+        assert_eq!(DiffView.next(true, true), Description);
+        assert_eq!(Description.next(true, true), FilePicker);
+        assert_eq!(FilePicker.prev(true, true), Description);
+    }
+
+    #[test]
+    fn skips_hidden_file_panel() {
+        assert_eq!(DiffView.next(false, false), DiffView);
+        assert_eq!(DiffView.next(true, false), Description);
+        assert_eq!(Description.next(true, false), DiffView);
+        assert_eq!(DiffView.prev(true, false), Description);
+    }
+
+    #[test]
+    fn two_panels_without_description() {
+        assert_eq!(FilePicker.next(false, true), DiffView);
+        assert_eq!(DiffView.next(false, true), FilePicker);
+        assert_eq!(DiffView.prev(false, true), FilePicker);
     }
 }

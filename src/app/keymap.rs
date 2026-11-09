@@ -469,6 +469,7 @@ impl Keymap {
             (String::new(), ""),
             // General
             (one("description"), "Toggle description panel"),
+            (one("toggle_file_panel"), "Toggle file list panel"),
             (one("toggle_view"), "Toggle unified / side-by-side"),
             (one("open_browser"), "Open in browser"),
             (one("quit"), "Quit"),
@@ -783,6 +784,12 @@ impl Keymap {
                 "accept",
             ),
         ]);
+
+        // ── File list panel toggle ────────────────────────────────────
+        defs.push(B::global(
+            &command::toggle_file_panel,
+            vec![Single('b'.into())],
+        ));
 
         // ── Description panel keys ────────────────────────────────────
         defs.push(B::multi(

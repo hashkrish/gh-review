@@ -34,19 +34,23 @@ impl App {
         self.draw_title(frame, main_layout[0]);
 
         let desc_open = self.description_panel.visible;
-        let content_constraints = if desc_open {
-            vec![
-                Constraint::Length(30),
-                Constraint::Min(40),
-                Constraint::Percentage(35),
-            ]
+        let files_open = self.file_panel_visible;
+        let mut content_constraints = Vec::with_capacity(3);
+        if files_open {
+            content_constraints.push(Constraint::Length(30));
+        }
+        if desc_open {
+            content_constraints.push(Constraint::Min(40));
+            content_constraints.push(Constraint::Percentage(35));
         } else {
-            vec![Constraint::Length(30), Constraint::Min(0)]
-        };
+            content_constraints.push(Constraint::Min(0));
+        }
         let content_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(content_constraints)
             .split(main_layout[1]);
+        // Index of the diff column; the file list (when open) is column 0.
+        let diff_idx = usize::from(files_open);
 
         // Clear the entire content row to prevent stale artifacts
         // when panels resize (e.g. description drawer closing).
@@ -59,7 +63,7 @@ impl App {
             }
         }
 
-        let diff_area = content_layout[1];
+        let diff_area = content_layout[diff_idx];
         let diff_height = diff_area.height.saturating_sub(2) as usize;
         self.visible_height = diff_height;
         let panel_inner_width = diff_area.width.saturating_sub(2) as usize;
@@ -73,18 +77,20 @@ impl App {
         }
         self.diff_view.ensure_visible(diff_height);
 
-        self.file_picker.draw(
-            content_layout[0],
-            frame.buffer_mut(),
-            self.focus == Focus::FilePicker,
-        );
+        if files_open {
+            self.file_picker.draw(
+                content_layout[0],
+                frame.buffer_mut(),
+                self.focus == Focus::FilePicker,
+            );
+        }
 
         self.diff_view
             .draw(diff_area, frame.buffer_mut(), self.focus == Focus::DiffView);
 
         if desc_open {
             self.description_panel.draw(
-                content_layout[2],
+                content_layout[diff_idx + 1],
                 frame.buffer_mut(),
                 self.focus == Focus::Description,
                 &self.stack,

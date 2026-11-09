@@ -120,6 +120,7 @@ Only include the ones you want to change.
 | `next_panel`          | `l`, `Right`      | Focus next panel                  |
 | `prev_panel`          | `h`, `Left`       | Focus previous panel              |
 | `toggle_view`         | `t`               | Toggle unified / side-by-side     |
+| `toggle_file_panel`   | `b`               | Toggle file list panel            |
 | `toggle_comment`      | `Enter`           | Toggle comment expand             |
 | `fold_toggle`         | `Enter`           | Toggle file fold                  |
 | `fold_open`           | `zo`              | Expand file fold                  |
