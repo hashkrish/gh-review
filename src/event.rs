@@ -43,6 +43,16 @@ pub enum AppEvent {
     SuggestionAccepted,
     ReviewSubmitted,
     ReplyPosted,
+    CommitsLoaded {
+        pr: u64,
+        data: Result<Vec<crate::types::Commit>, String>,
+    },
+    /// Files for a commit or "since" view, ready to replace the full diff.
+    AltDiffLoaded {
+        pr: u64,
+        source: crate::types::DiffSource,
+        files: Vec<crate::types::DiffFile>,
+    },
     Sync(crate::sync::SyncEvent),
     StackPrefetchLoaded(std::collections::HashMap<u64, crate::stack::PrSnapshot>),
     CustomActionComplete {

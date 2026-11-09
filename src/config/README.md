@@ -152,6 +152,7 @@ Only include the ones you want to change.
 | `sync_drafts`                  | —          | Sync drafts with GitHub pending review |
 | `toggle_viewed`                | `m`        | Mark file viewed / unviewed       |
 | `sync_viewed`                  | —          | Sync viewed files with GitHub     |
+| `toggle_commits`               | `p`        | Toggle commits panel (see [Commits Panel](#commits-panel)) |
 | `expand_all_comments`          | —          | Expand all comment threads        |
 | `collapse_all_comments`        | —          | Collapse all comment threads      |
 
@@ -173,7 +174,29 @@ Only include the ones you want to change.
 
 Navigation keys like `j`/`k`/`gg`/`G` work in all panels but dispatch to
 panel-specific commands. For example, `j` calls `scroll_down` in the diff,
-`picker_down` in the file list, and `desc_scroll_down` in the description.
+`picker_down` in the file list, `desc_scroll_down` in the description, and
+`commits_down` in the commits panel.
+
+### Commits Panel
+
+| Action                | Default           | Description                                  |
+|-----------------------|-------------------|----------------------------------------------|
+| `toggle_commits`      | `p`               | Toggle the commits panel (also `q`/`Esc` inside it) |
+| `commits_down`        | `j`, `Down`       | Next row                                     |
+| `commits_up`          | `k`, `Up`         | Previous row                                 |
+| `commits_half_page_down` | `Ctrl-d`       | Half page down                               |
+| `commits_half_page_up`   | `Ctrl-u`       | Half page up                                 |
+| `commits_page_down`   | `Ctrl-f`, `Space` | Full page down                               |
+| `commits_page_up`     | `Ctrl-b`, `Shift-Space` | Full page up                           |
+| `commits_first`       | `gg`, `Home`      | First row ("All changes")                    |
+| `commits_last`        | `End`, `G`        | Last commit                                  |
+| `commit_view`         | `Enter`           | View the selected commit's diff; on "All changes", return to the full PR diff |
+| `commit_since`        | `s`               | View everything after the selected commit, up to the PR head |
+| `commit_copy_sha`     | `y`               | Copy the commit's full SHA                   |
+| `commit_open`         | `o`               | Open the commit on GitHub                    |
+
+`commit_*` and `commits_*` apply only while the commits panel has focus, so
+their keys (`s`, `y`, `o`, `Enter`) keep their usual meaning elsewhere.
 
 ### Stack Navigation
 

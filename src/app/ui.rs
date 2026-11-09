@@ -33,7 +33,7 @@ impl App {
 
         self.draw_title(frame, main_layout[0]);
 
-        let desc_open = self.description_panel.visible;
+        let desc_open = self.right_drawer().is_some();
         let files_open = self.file_panel_visible;
         let mut content_constraints = Vec::with_capacity(3);
         if files_open {
@@ -89,13 +89,27 @@ impl App {
         self.diff_view
             .draw(diff_area, frame.buffer_mut(), self.focus == Focus::DiffView);
 
-        if desc_open {
-            self.description_panel.draw(
+        match self.right_drawer() {
+            Some(Focus::Description) => self.description_panel.draw(
                 content_layout[diff_idx + 1],
                 frame.buffer_mut(),
                 self.focus == Focus::Description,
                 &self.stack,
-            );
+            ),
+            Some(Focus::Commits) => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0);
+                self.commits_panel.draw(
+                    content_layout[diff_idx + 1],
+                    frame.buffer_mut(),
+                    self.focus == Focus::Commits,
+                    &self.diff_source,
+                    now,
+                );
+            }
+            _ => {}
         }
 
         if self.command_bar.active {
@@ -186,6 +200,12 @@ impl App {
                 s.push(Span::styled(
                     format!("/-{deletions}"),
                     ratatui::style::Style::default().fg(Color::Red),
+                ));
+            }
+            if !self.diff_source.is_full() {
+                s.push(Span::styled(
+                    format!("  [{} · read-only]", self.diff_source.label()),
+                    ratatui::style::Style::default().fg(Color::Yellow),
                 ));
             }
             s

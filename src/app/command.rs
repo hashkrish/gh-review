@@ -100,6 +100,21 @@ define_commands! {
     sync_drafts,          "Sync drafts with GitHub pending review", true;
     toggle_viewed,        "Mark file viewed / unviewed",   true;
     sync_viewed,          "Sync viewed files with GitHub", true;
+    toggle_commits,       "Toggle commits panel",          true;
+
+    // Commits panel
+    commits_down,         "Commits: next",                 false;
+    commits_up,           "Commits: previous",             false;
+    commits_half_page_down, "Commits: half page down",     false;
+    commits_half_page_up, "Commits: half page up",         false;
+    commits_page_down,    "Commits: page down",            false;
+    commits_page_up,      "Commits: page up",              false;
+    commits_first,        "Commits: first",                false;
+    commits_last,         "Commits: last",                 false;
+    commit_view,          "Commits: view this commit's diff", false;
+    commit_since,         "Commits: view changes since this commit", false;
+    commit_open,          "Commits: open commit on GitHub", false;
+    commit_copy_sha,      "Commits: copy commit SHA",      false;
     open_command_mode,    "Open command prompt",            false;
     fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;

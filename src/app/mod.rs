@@ -1,6 +1,7 @@
 pub(crate) mod command;
 mod command_handlers;
 pub(crate) mod custom_action;
+mod commits;
 mod draft_sync;
 mod handlers;
 pub(crate) mod keymap;
@@ -13,6 +14,7 @@ use tokio::sync::mpsc;
 
 use crate::components::command_bar::CommandBar;
 use crate::components::comment_input::CommentInput;
+use crate::components::commits_panel::CommitsPanel;
 use crate::components::description_panel::DescriptionPanel;
 use crate::components::diff_view::DiffView;
 use crate::components::file_picker::FilePicker;
@@ -24,7 +26,7 @@ use crate::sync::{Conflict, SyncOp};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::config::{Config, load_user_config};
-use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
+use crate::types::{DiffFile, DiffSource, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 use custom_action::resolve_custom_actions;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -32,30 +34,30 @@ pub(crate) enum Focus {
     FilePicker,
     DiffView,
     Description,
+    Commits,
 }
 
 impl Focus {
     /// Visible panels in left-to-right order; focus cycles through these.
-    fn cycle(desc_open: bool, files_open: bool) -> Vec<Self> {
+    /// `right` is the open right-hand drawer (description or commits), if any.
+    fn cycle(right: Option<Focus>, files_open: bool) -> Vec<Self> {
         let mut panels = Vec::with_capacity(3);
         if files_open {
             panels.push(Focus::FilePicker);
         }
         panels.push(Focus::DiffView);
-        if desc_open {
-            panels.push(Focus::Description);
-        }
+        panels.extend(right);
         panels
     }
 
-    pub fn next(self, desc_open: bool, files_open: bool) -> Self {
-        let panels = Self::cycle(desc_open, files_open);
+    pub fn next(self, right: Option<Focus>, files_open: bool) -> Self {
+        let panels = Self::cycle(right, files_open);
         let idx = panels.iter().position(|p| *p == self).unwrap_or(0);
         panels[(idx + 1) % panels.len()]
     }
 
-    pub fn prev(self, desc_open: bool, files_open: bool) -> Self {
-        let panels = Self::cycle(desc_open, files_open);
+    pub fn prev(self, right: Option<Focus>, files_open: bool) -> Self {
+        let panels = Self::cycle(right, files_open);
         let idx = panels.iter().position(|p| *p == self).unwrap_or(0);
         panels[(idx + panels.len() - 1) % panels.len()]
     }
@@ -98,6 +100,15 @@ pub struct App {
     /// Viewed-checkbox pushes not yet confirmed, per `(pr, path)`. A pull must
     /// not overwrite a file whose own toggle is still in flight.
     pub(crate) viewed_inflight: HashMap<(u64, String), usize>,
+
+    // Commits panel and the read-only commit / since views (see `commits.rs`).
+    pub(crate) commits_panel: CommitsPanel,
+    pub(crate) diff_source: DiffSource,
+    /// A commit/since view that was requested but hasn't loaded yet; lets a
+    /// late response for a view the user has since left be ignored.
+    pub(crate) pending_source: Option<DiffSource>,
+    /// The full PR diff's files, set aside while a commit/since view shows.
+    pub(crate) full_files: Vec<DiffFile>,
 
     pub(crate) file_picker: FilePicker,
     pub(crate) file_panel_visible: bool,
@@ -156,6 +167,10 @@ impl App {
             tombstones: HashSet::new(),
             sync_conflicts: VecDeque::new(),
             viewed_inflight: HashMap::new(),
+            commits_panel: CommitsPanel::new(),
+            diff_source: DiffSource::Full,
+            pending_source: None,
+            full_files: Vec::new(),
             file_picker: FilePicker::new(),
             file_panel_visible: true,
             diff_view: DiffView::new(),
@@ -344,6 +359,10 @@ impl App {
                 self.expand_context(&path, &base_content, &head_content);
             }
             AppEvent::Sync(event) => self.handle_sync_event(event),
+            AppEvent::CommitsLoaded { pr, data } => self.on_commits_loaded(pr, data),
+            AppEvent::AltDiffLoaded { pr, source, files } => {
+                self.on_alt_diff_loaded(pr, source, files)
+            }
             AppEvent::ReplyPosted => {
                 self.status.success("Reply posted");
                 self.reload_comments_and_threads();
@@ -372,13 +391,31 @@ impl App {
     }
 
     pub(crate) fn rebuild_display(&mut self) {
-        self.diff_view.rebuild_rows(
-            &self.files,
-            &self.existing_comments,
-            &self.review_body_comments,
-            &self.pending_comments,
-            &self.thread_map,
-        );
+        if self.diff_source.is_full() {
+            self.diff_view.rebuild_rows(
+                &self.files,
+                &self.existing_comments,
+                &self.review_body_comments,
+                &self.pending_comments,
+                &self.thread_map,
+            );
+        } else {
+            // Review comments anchor to the full PR diff's lines, so they
+            // would land on the wrong rows in a single-commit diff.
+            self.diff_view
+                .rebuild_rows(&self.files, &[], &[], &[], &HashMap::new());
+        }
+    }
+
+    /// The open right-hand drawer, if any (the two are mutually exclusive).
+    pub(crate) fn right_drawer(&self) -> Option<Focus> {
+        if self.description_panel.visible {
+            Some(Focus::Description)
+        } else if self.commits_panel.visible {
+            Some(Focus::Commits)
+        } else {
+            None
+        }
     }
 
     fn prefetch_stack(&self) {
@@ -482,6 +519,8 @@ impl App {
             return;
         }
         let mode = self.diff_view.mode;
+        // The cache must hold the PR's own files, not a commit's.
+        self.leave_commit_view();
         self.save_current_to_cache();
 
         if self.restore_from_cache(pr_number) {
@@ -503,6 +542,12 @@ impl App {
             self.loading = true;
             self.status.info(format!("Loading PR #{pr_number}..."));
             self.start_loading();
+        }
+
+        // The commit list belongs to the PR we just left.
+        self.commits_panel.reset();
+        if self.commits_panel.visible {
+            self.request_commits();
         }
     }
 
@@ -549,28 +594,39 @@ impl App {
 
 #[cfg(test)]
 mod focus_tests {
-    use super::Focus::{DiffView, Description, FilePicker};
+    use super::Focus::{self, Commits, Description, DiffView, FilePicker};
+
+    const DESC: Option<Focus> = Some(Description);
+    const COMMITS: Option<Focus> = Some(Commits);
 
     #[test]
     fn cycles_all_visible_panels() {
-        assert_eq!(FilePicker.next(true, true), DiffView);
-        assert_eq!(DiffView.next(true, true), Description);
-        assert_eq!(Description.next(true, true), FilePicker);
-        assert_eq!(FilePicker.prev(true, true), Description);
+        assert_eq!(FilePicker.next(DESC, true), DiffView);
+        assert_eq!(DiffView.next(DESC, true), Description);
+        assert_eq!(Description.next(DESC, true), FilePicker);
+        assert_eq!(FilePicker.prev(DESC, true), Description);
     }
 
     #[test]
     fn skips_hidden_file_panel() {
-        assert_eq!(DiffView.next(false, false), DiffView);
-        assert_eq!(DiffView.next(true, false), Description);
-        assert_eq!(Description.next(true, false), DiffView);
-        assert_eq!(DiffView.prev(true, false), Description);
+        assert_eq!(DiffView.next(None, false), DiffView);
+        assert_eq!(DiffView.next(DESC, false), Description);
+        assert_eq!(Description.next(DESC, false), DiffView);
+        assert_eq!(DiffView.prev(DESC, false), Description);
     }
 
     #[test]
-    fn two_panels_without_description() {
-        assert_eq!(FilePicker.next(false, true), DiffView);
-        assert_eq!(DiffView.next(false, true), FilePicker);
-        assert_eq!(DiffView.prev(false, true), FilePicker);
+    fn two_panels_without_a_drawer() {
+        assert_eq!(FilePicker.next(None, true), DiffView);
+        assert_eq!(DiffView.next(None, true), FilePicker);
+        assert_eq!(DiffView.prev(None, true), FilePicker);
+    }
+
+    #[test]
+    fn the_commits_drawer_takes_the_drawer_slot() {
+        assert_eq!(DiffView.next(COMMITS, true), Commits);
+        assert_eq!(Commits.next(COMMITS, true), FilePicker);
+        assert_eq!(FilePicker.prev(COMMITS, true), Commits);
+        assert_eq!(Commits.prev(COMMITS, false), DiffView);
     }
 }

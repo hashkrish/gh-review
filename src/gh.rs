@@ -9,8 +9,9 @@ use serde::Deserialize;
 mod pending_review_tests;
 
 use crate::types::{
-    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrRef, PrReview, PrUser,
-    RemoteDraft, ReviewComment, ReviewEvent, ReviewState, ReviewerInfo, Side, ThreadInfo,
+    Commit, DiffFile, ExistingComment, FileStatus, GhCommit, GhFile, GhFilesResponse, PrMetadata,
+    PrRef, PrReview, PrUser, RemoteDraft, ReviewComment, ReviewEvent, ReviewState, ReviewerInfo,
+    Side, ThreadInfo,
 };
 
 async fn run_gh(args: &[&str]) -> Result<String> {
@@ -302,6 +303,12 @@ pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>>
     let gh_files: Vec<GhFile> =
         serde_json::from_str(&output).context("Failed to parse PR files")?;
 
+    Ok(diff_files_from_gh(gh_files))
+}
+
+/// Turn GitHub's file entries (with unified-diff patches) into parsed,
+/// highlighted [`DiffFile`]s.
+fn diff_files_from_gh(gh_files: Vec<GhFile>) -> Vec<DiffFile> {
     let mut files = Vec::new();
     for f in gh_files {
         let hunks = if let Some(ref patch) = f.patch {
@@ -321,8 +328,35 @@ pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>>
 
         crate::highlight::highlight_file(files.last_mut().unwrap());
     }
+    files
+}
 
-    Ok(files)
+/// The PR's commits, oldest first.
+pub async fn fetch_pr_commits(repo: &str, pr_number: u64) -> Result<Vec<Commit>> {
+    let url = format!("repos/{repo}/pulls/{pr_number}/commits");
+    let output = run_gh(&["api", &url, "--paginate"]).await?;
+    let commits: Vec<GhCommit> =
+        serde_json::from_str(&output).context("Failed to parse PR commits")?;
+    Ok(commits.into_iter().map(Commit::from).collect())
+}
+
+/// Files changed by a single commit. GitHub returns at most 300 files.
+pub async fn fetch_commit_files(repo: &str, sha: &str) -> Result<Vec<DiffFile>> {
+    let url = format!("repos/{repo}/commits/{sha}");
+    let output = run_gh(&["api", &url]).await?;
+    let resp: GhFilesResponse =
+        serde_json::from_str(&output).context("Failed to parse commit files")?;
+    Ok(diff_files_from_gh(resp.files))
+}
+
+/// Files changed after `base` up to `head` (both commit SHAs): what's new
+/// since `base`. GitHub returns at most 300 files.
+pub async fn fetch_compare_files(repo: &str, base: &str, head: &str) -> Result<Vec<DiffFile>> {
+    let url = format!("repos/{repo}/compare/{base}...{head}");
+    let output = run_gh(&["api", &url]).await?;
+    let resp: GhFilesResponse =
+        serde_json::from_str(&output).context("Failed to parse comparison")?;
+    Ok(diff_files_from_gh(resp.files))
 }
 
 pub async fn fetch_review_comments(repo: &str, pr_number: u64) -> Result<Vec<ExistingComment>> {

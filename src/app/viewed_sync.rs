@@ -35,9 +35,21 @@ fn apply_viewed_states(
 }
 
 impl App {
+    /// Whether the PR's own files are what the diff and file list show (not
+    /// another PR's, and not a commit/since view's).
+    fn showing_pr_files(&self, pr: u64) -> bool {
+        pr == self.pr_number && self.diff_source.is_full()
+    }
+
+    /// The PR's files for `pr`: the live list, the ones set aside during a
+    /// commit/since view, or a cached PR's.
     fn files_mut(&mut self, pr: u64) -> Option<&mut Vec<DiffFile>> {
         if pr == self.pr_number {
-            Some(&mut self.files)
+            if self.diff_source.is_full() {
+                Some(&mut self.files)
+            } else {
+                Some(&mut self.full_files)
+            }
         } else {
             self.pr_cache.get_mut(pr).map(|s| &mut s.files)
         }
@@ -118,6 +130,7 @@ impl App {
         if remaining > 0 {
             return;
         }
+        let live = self.showing_pr_files(pr);
         let Some(files) = self.files_mut(pr) else {
             return;
         };
@@ -129,7 +142,7 @@ impl App {
             return;
         };
         file.viewed = !attempted;
-        if pr == self.pr_number {
+        if live {
             self.set_fold(idx, !attempted);
             self.refresh_file_views();
         }
@@ -142,11 +155,13 @@ impl App {
             .filter(|(p, _)| *p == pr)
             .map(|(_, path)| path.clone())
             .collect();
+        let live = self.showing_pr_files(pr);
         let Some(files) = self.files_mut(pr) else {
             return;
         };
         let changed = apply_viewed_states(files, &states, &in_flight);
-        if pr != self.pr_number || changed.is_empty() {
+        // Fold indices only mean something for the files actually displayed.
+        if !live || changed.is_empty() {
             return;
         }
         for (idx, viewed) in changed {

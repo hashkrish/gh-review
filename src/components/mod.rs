@@ -1,5 +1,6 @@
 pub mod command_bar;
 pub mod comment_input;
+pub mod commits_panel;
 pub mod description_panel;
 pub mod diff_view;
 pub mod file_picker;

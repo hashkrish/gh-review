@@ -101,6 +101,7 @@ gh-dash (browse PRs)
 | `Enter` | In the file list: move focus to the diff |
 | `Esc` | Close description panel (when focused) |
 | `b` | Toggle file list panel |
+| `p` | Toggle commits panel |
 
 Panels: **File List** ↔ **Diff** ↔ **Description** (when open). The file list can be hidden with `b`, which gives the diff the full width.
 
@@ -141,6 +142,24 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `y` | Accept suggestion (apply as commit) |
 
 Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
+
+#### Commits panel
+
+`p` opens a right-hand drawer listing the PR's commits (short SHA, headline, author, age); it shares the drawer with the description panel, so opening one closes the other. The first row, **All changes**, is the normal full PR diff.
+
+| Key (in the panel) | Action |
+|-----|--------|
+| `j` / `k` | Move through the commits |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `Ctrl+F` / `Ctrl+B`, `Space` / `Shift+Space` | Full page down / up |
+| `gg` / `G` | Jump to the first row ("All changes") / the last commit |
+| `Enter` | View just that commit's diff (on **All changes**: back to the full PR diff) |
+| `s` | View everything *since* that commit, up to the PR head (what's new since you last looked) |
+| `y` | Copy the commit's full SHA (platform clipboard tool, else the OSC 52 terminal sequence) |
+| `o` | Open the commit on GitHub |
+| `p` / `q` / `Esc` | Close the panel |
+
+A commit or since view is **read-only**: it is marked in the title bar, review comments are hidden (they anchor to the full diff's lines), and commenting, suggesting, expanding context and the viewed mark are disabled until you return to **All changes**. Your drafts and viewed marks are kept. GitHub lists at most 300 files per commit view.
 
 #### Viewed files
 
