@@ -9,13 +9,16 @@
 //! The list is rebuilt from the app's comment data in `rebuild_display`, so
 //! resolving, replying and editing show up without any extra bookkeeping.
 
-use crate::components::comments_panel::{CommentEntry, EntryKind, build_entries};
+use crate::components::comments_panel::{Anchor, CommentEntry, EntryKind, build_entries};
 use crate::diff::renderer::DisplayRow;
 
 use super::{App, Focus};
 
 /// What resolving `entry` would toggle: its thread id and current state.
 fn resolve_target(entry: &CommentEntry) -> Result<(String, bool), &'static str> {
+    if entry.anchor == Anchor::Conversation {
+        return Err("Conversation comments aren't review threads, so they can't be resolved");
+    }
     match (entry.kind, &entry.thread_node_id) {
         (EntryKind::Draft, _) => Err("Drafts can't be resolved; they're not published yet"),
         (EntryKind::Thread, Some(id)) => Ok((id.clone(), entry.is_resolved)),
@@ -25,6 +28,9 @@ fn resolve_target(entry: &CommentEntry) -> Result<(String, bool), &'static str> 
 
 /// Who and what a reply to `entry` goes to.
 fn reply_target(entry: &CommentEntry) -> Result<(u64, String), &'static str> {
+    if entry.anchor == Anchor::Conversation {
+        return Err("Reply to conversation comments on GitHub; replies here go to review threads");
+    }
     match (entry.kind, entry.root_id) {
         (EntryKind::Thread, Some(root)) => Ok((root, entry.author.clone())),
         _ => Err("Drafts can't be replied to; submit the review first"),
@@ -34,6 +40,9 @@ fn reply_target(entry: &CommentEntry) -> Result<(u64, String), &'static str> {
 /// The thread's page on GitHub. Drafts have none until they're submitted.
 fn comment_url(repo: &str, pr: u64, entry: &CommentEntry) -> Option<String> {
     match (entry.kind, entry.root_id) {
+        (EntryKind::Thread, Some(id)) if entry.anchor == Anchor::Conversation => Some(format!(
+            "https://github.com/{repo}/pull/{pr}#issuecomment-{id}"
+        )),
         (EntryKind::Thread, Some(root)) => Some(format!(
             "https://github.com/{repo}/pull/{pr}#discussion_r{root}"
         )),
@@ -117,10 +126,7 @@ impl App {
                 self.diff_view.cursor = row;
                 self.focus = Focus::DiffView;
             }
-            None => self.status.info(format!(
-                "{} isn't shown in the diff (outdated, or outside the visible hunks)",
-                entry.path
-            )),
+            None => self.status.info("Couldn't find that comment in the diff"),
         }
     }
 

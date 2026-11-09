@@ -21,6 +21,8 @@ fn comment(id: u64, reply_to: Option<u64>, path: &str, line: usize, body: &str) 
         },
         created_at: "2026-11-09T07:00:00Z".to_string(),
         in_reply_to_id: reply_to,
+        original_line: None,
+        subject_type: None,
     }
 }
 
@@ -289,20 +291,57 @@ fn jumping_from_a_commit_view_returns_to_the_full_diff_first() {
 }
 
 #[test]
-fn a_comment_that_is_not_in_the_diff_is_reported_not_jumped_to() {
+fn a_comment_on_a_line_the_diff_does_not_show_is_still_reachable() {
     let mut app = app();
-    // Line 99 isn't in a.rs's diff (an outdated comment).
+    // Line 99 isn't in a.rs's diff. Such a comment is shown at the end of
+    // its file rather than dropped, so it can be jumped to.
     app.existing_comments
-        .push(comment(30, None, "a.rs", 99, "outdated"));
+        .push(comment(30, None, "a.rs", 99, "outside the hunks"));
     app.rebuild_display();
     app.toggle_comments_panel();
     select(&mut app, thread(30));
-    let cursor = app.diff_view.cursor;
 
     press(&mut app, KeyCode::Enter);
 
-    assert_eq!(app.focus, Focus::Comments, "focus stays on the panel");
-    assert_eq!(app.diff_view.cursor, cursor);
+    assert_eq!(app.focus, Focus::DiffView);
+    let row = &app.diff_view.display_rows[app.diff_view.cursor];
+    assert!(
+        matches!(
+            row,
+            DisplayRow::CommentHeader {
+                thread_root_id: Some(30),
+                ..
+            }
+        ),
+        "got {row:?}"
+    );
+}
+
+#[test]
+fn an_outdated_comment_can_be_jumped_to_too() {
+    let mut app = app();
+    let mut outdated = comment(31, None, "b.rs", 1, "the code has moved on");
+    outdated.line = None;
+    outdated.original_line = Some(12);
+    app.existing_comments.push(outdated);
+    app.rebuild_display();
+    app.toggle_comments_panel();
+    select(&mut app, thread(31));
+
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(app.focus, Focus::DiffView);
+    let row = &app.diff_view.display_rows[app.diff_view.cursor];
+    assert!(
+        matches!(
+            row,
+            DisplayRow::CommentHeader {
+                thread_root_id: Some(31),
+                ..
+            }
+        ),
+        "got {row:?}"
+    );
 }
 
 #[test]
@@ -340,6 +379,7 @@ fn drafts_cannot_be_replied_to() {
 
 fn entry(kind: EntryKind, node: Option<&str>, resolved: bool) -> CommentEntry {
     CommentEntry {
+        anchor: Anchor::Line(1),
         kind,
         root_id: (kind == EntryKind::Thread).then_some(5),
         thread_node_id: node.map(String::from),
@@ -420,6 +460,89 @@ fn x_leaves_published_threads_alone() {
     press(&mut app, KeyCode::Char('x'));
     assert_eq!(app.comments_panel.len(), 3);
     assert_eq!(app.pending_comments.len(), 1);
+}
+
+// ── Conversation comments (not attached to any file) ───────────────────
+
+fn conversation_entry() -> CommentEntry {
+    CommentEntry {
+        anchor: Anchor::Conversation,
+        thread_node_id: None,
+        ..entry(EntryKind::Thread, None, false)
+    }
+}
+
+#[test]
+fn conversation_comments_cannot_be_resolved_or_replied_to_from_the_panel() {
+    let e = conversation_entry();
+    assert!(resolve_target(&e).is_err());
+    assert!(reply_target(&e).is_err());
+}
+
+#[test]
+fn conversation_links_use_the_issue_comment_anchor() {
+    assert_eq!(
+        comment_url("o/r", 7, &conversation_entry()).as_deref(),
+        Some("https://github.com/o/r/pull/7#issuecomment-5")
+    );
+}
+
+#[test]
+fn a_conversation_comment_is_listed_last_and_can_be_jumped_to() {
+    let mut app = app();
+    let mut chat = comment(40, None, "", 1, "general discussion");
+    chat.line = None;
+    chat.subject_type = None;
+    app.existing_comments.push(chat);
+    app.rebuild_display();
+    app.toggle_comments_panel();
+
+    app.comments_panel.goto_last();
+    assert_eq!(
+        app.comments_panel.selected_entry().unwrap().anchor,
+        Anchor::Conversation,
+        "listed after everything else, though its empty path sorts first"
+    );
+
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.focus, Focus::DiffView);
+    let row = &app.diff_view.display_rows[app.diff_view.cursor];
+    assert!(
+        matches!(
+            row,
+            DisplayRow::CommentHeader {
+                thread_root_id: Some(40),
+                ..
+            }
+        ),
+        "got {row:?}"
+    );
+}
+
+#[test]
+fn replying_to_a_conversation_comment_does_not_open_the_reply_box() {
+    let mut app = app();
+    let mut chat = comment(40, None, "", 1, "general discussion");
+    chat.line = None;
+    app.existing_comments.push(chat);
+    app.rebuild_display();
+    app.toggle_comments_panel();
+    app.comments_panel.goto_last();
+    press(&mut app, KeyCode::Char('r'));
+    assert!(!app.comment_input.visible);
+}
+
+#[test]
+fn conversation_comments_only_appear_under_the_all_filter() {
+    let mut app = app();
+    let mut chat = comment(40, None, "", 1, "general discussion");
+    chat.line = None;
+    app.existing_comments.push(chat);
+    app.rebuild_display();
+    app.toggle_comments_panel();
+    assert_eq!(app.comments_panel.len(), 4);
+    press(&mut app, KeyCode::Char('f')); // unresolved
+    assert_eq!(app.comments_panel.len(), 2, "thread 5 and the draft only");
 }
 
 // ── Opening and copying ────────────────────────────────────────────────
@@ -503,6 +626,36 @@ fn screen(app: &mut App, width: u16, height: u16) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[test]
+fn outdated_and_conversation_comments_are_labelled_on_screen() {
+    let mut app = app();
+    let mut old = comment(50, None, "a.rs", 1, "written against older code");
+    old.line = None;
+    old.original_line = Some(12);
+    app.existing_comments.push(old);
+    let mut chat = comment(51, None, "", 1, "general discussion");
+    chat.line = None;
+    chat.subject_type = None;
+    app.existing_comments.push(chat);
+    app.rebuild_display();
+
+    let out = screen(&mut app, 140, 40);
+    assert!(
+        out.contains("outdated · was line 12"),
+        "note on the header:\n{out}"
+    );
+    assert!(
+        out.contains("Conversation and review comments"),
+        "heading for the trailing section:\n{out}"
+    );
+    // The outdated comment is inside a.rs's section, above b.rs.
+    let outdated_at = out.find("outdated · was line 12").unwrap();
+    let b_rs_at = out.find("─── b.rs ───").unwrap();
+    let section_at = out.find("Conversation and review comments").unwrap();
+    assert!(outdated_at < b_rs_at, "not pushed past the next file");
+    assert!(b_rs_at < section_at, "the trailing section comes last");
 }
 
 #[test]

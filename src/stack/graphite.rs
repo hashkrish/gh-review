@@ -167,6 +167,8 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
                 },
                 created_at: String::new(),
                 in_reply_to_id: None,
+                original_line: None,
+                subject_type: None,
             },
             ExistingComment {
                 id: 2,
@@ -180,6 +182,8 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
                 },
                 created_at: String::new(),
                 in_reply_to_id: None,
+                original_line: None,
+                subject_type: None,
             },
         ];
         let links = extract_stack(&comments);

@@ -162,6 +162,16 @@ Comments are batched into a pending review and submitted together when you press
 
 A commit or since view is **read-only**: it is marked in the title bar, review comments are hidden (they anchor to the full diff's lines), and commenting, suggesting, expanding context and the viewed mark are disabled until you return to **All changes**. Your drafts and viewed marks are kept. GitHub lists at most 300 files per commit view.
 
+#### Where comments appear in the diff
+
+- **On their line** when they have one.
+- **Outdated comments** (written against code that has since changed, so GitHub no longer gives them a line) sit at the end of their own file's section, tagged `outdated · was line N`.
+- **File-level comments** sit at the top of their file, tagged `file comment`.
+- **A line comment whose line isn't in the shown diff** (for example on a file without a patch) sits at the end of its file, tagged `line N isn't in the shown diff`, rather than disappearing.
+- **Conversation comments and review summaries**, which belong to no file, are collected under a `Conversation and review comments` heading after the last file.
+
+A folded file hides its comments along with its diff.
+
 #### Comments panel
 
 `i` opens a right-hand drawer listing every review thread in the PR plus your pending drafts, in diff order, so comments can be found and handled without scrolling the diff. It shares the drawer with the description and commits panels (opening one closes the others).
@@ -181,7 +191,7 @@ Each entry shows its status (`○` open, `✓` resolved, `✎` your draft), `fil
 | `f` | Cycle the filter: all → unresolved → resolved → drafts | — |
 | `i` / `q` / `Esc` | Close the panel | — |
 
-The list updates as comments change, so resolving a thread, posting a reply or discarding a draft shows up straight away. A comment that isn't in the current diff (outdated, or outside the shown hunks) is listed but can't be jumped to.
+The list updates as comments change, so resolving a thread, posting a reply or discarding a draft shows up straight away. Entries are labelled by where they sit: `file:line`, `file (outdated, was :12)`, `file (file)` for a whole-file comment, or `PR conversation`. Conversation comments are listed last, appear only under the `all` filter, and can be jumped to, copied and opened, but not replied to or resolved from here (they aren't review threads).
 
 #### Viewed files
 

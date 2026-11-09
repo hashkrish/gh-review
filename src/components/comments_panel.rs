@@ -31,9 +31,25 @@ pub enum EntryKind {
     Draft,
 }
 
+/// Where a comment sits, which decides how it's labelled and which actions
+/// apply to it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Anchor {
+    /// On a line of the diff (or a draft's line).
+    Line(usize),
+    /// Written on code that has since changed; the line it was on, if known.
+    Outdated(Option<usize>),
+    /// On a whole file rather than a line.
+    File,
+    /// A PR conversation comment: not attached to any file, and not a review
+    /// thread, so it can't be resolved or replied to from here.
+    Conversation,
+}
+
 /// One row of the panel.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommentEntry {
+    pub anchor: Anchor,
     pub kind: EntryKind,
     /// GitHub id of the thread's root comment (threads only); the id a reply
     /// is posted to and the anchor of its `#discussion_r…` link.
@@ -107,9 +123,12 @@ impl Filter {
     }
 
     fn accepts(self, e: &CommentEntry) -> bool {
+        // Conversation comments aren't review threads, so "resolved" and
+        // "unresolved" don't apply to them; they only appear under "all".
+        let conversation = e.anchor == Anchor::Conversation;
         match self {
             Self::All => true,
-            Self::Unresolved => !e.is_resolved,
+            Self::Unresolved => !e.is_resolved && !conversation,
             Self::Resolved => e.is_resolved,
             Self::Drafts => e.kind == EntryKind::Draft,
         }
@@ -145,6 +164,15 @@ pub fn build_entries(
                 .unwrap_or(&comments[0]);
             let info = threads.get(&root_id);
             CommentEntry {
+                anchor: if root.is_pr_level() {
+                    Anchor::Conversation
+                } else if root.is_file_level() {
+                    Anchor::File
+                } else if let Some(line) = root.line {
+                    Anchor::Line(line)
+                } else {
+                    Anchor::Outdated(root.original_line)
+                },
                 kind: EntryKind::Thread,
                 root_id: Some(root_id),
                 thread_node_id: info.map(|t| t.thread_node_id.clone()),
@@ -165,6 +193,7 @@ pub fn build_entries(
         .collect();
 
     entries.extend(pending.iter().enumerate().map(|(idx, c)| CommentEntry {
+        anchor: Anchor::Line(c.line),
         kind: EntryKind::Draft,
         root_id: None,
         thread_node_id: None,
@@ -178,10 +207,18 @@ pub fn build_entries(
         is_resolved: false,
     }));
 
-    // Diff order. Within a line, published threads come before drafts.
+    // Diff order, with conversation comments last (as in the diff). Within a
+    // line, published threads come before drafts.
     entries.sort_by(|a, b| {
         let kind_rank = |e: &CommentEntry| (e.kind == EntryKind::Draft) as u8;
-        (&a.path, a.line, kind_rank(a), a.key().1).cmp(&(&b.path, b.line, kind_rank(b), b.key().1))
+        let conversation = |e: &CommentEntry| (e.anchor == Anchor::Conversation) as u8;
+        (conversation(a), &a.path, a.line, kind_rank(a), a.key().1).cmp(&(
+            conversation(b),
+            &b.path,
+            b.line,
+            kind_rank(b),
+            b.key().1,
+        ))
     });
     entries
 }
@@ -362,9 +399,14 @@ impl CommentsPanel {
                 (Theme::file_list_normal(), meta_style())
             };
 
-            let location = match entry.line {
-                Some(line) => format!("{}:{line}", entry.path),
-                None => entry.path.clone(),
+            let location = match entry.anchor {
+                Anchor::Line(line) => format!("{}:{line}", entry.path),
+                Anchor::Outdated(Some(was)) => {
+                    format!("{} (outdated, was :{was})", entry.path)
+                }
+                Anchor::Outdated(None) => format!("{} (outdated)", entry.path),
+                Anchor::File => format!("{} (file)", entry.path),
+                Anchor::Conversation => "PR conversation".to_string(),
             };
             buf.set_string(inner.x, y, marker, main_style.fg(marker_color));
             let loc_width = inner.width.saturating_sub(2);

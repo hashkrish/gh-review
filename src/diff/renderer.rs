@@ -49,6 +49,10 @@ pub fn render_unified_row(
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
+        DisplayRow::SectionHeader { text } => Line::from(vec![Span::styled(
+            format!("▼ ─── {text} ───"),
+            Theme::file_header(),
+        )]),
         DisplayRow::DiffLine { line, .. } => render_unified_diff_line(line),
         DisplayRow::ExpandHint {
             available_lines, ..
@@ -70,6 +74,7 @@ pub fn render_unified_row(
             is_resolved,
             reply_count,
             body_preview,
+            note,
             ..
         } => render_collapsed_header(
             author,
@@ -77,6 +82,7 @@ pub fn render_unified_row(
             *is_resolved,
             *reply_count,
             body_preview,
+            note.as_deref(),
             _width,
         ),
 
@@ -119,6 +125,7 @@ fn render_collapsed_header(
     is_resolved: bool,
     reply_count: usize,
     body_preview: &str,
+    note: Option<&str>,
     width: u16,
 ) -> Line<'static> {
     let (bg, border_color, fg) = if is_pending {
@@ -147,6 +154,9 @@ fn render_collapsed_header(
         format!(" ▶ 📝 pending  {body_preview}")
     } else {
         let mut h = format!(" ▶ 💬 {author}");
+        if let Some(note) = note {
+            h.push_str(&format!(" · {note}"));
+        }
         if is_resolved {
             h.push_str(" ✓ Resolved");
         }

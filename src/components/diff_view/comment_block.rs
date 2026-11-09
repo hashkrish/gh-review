@@ -160,6 +160,7 @@ pub(super) fn find_comment_blocks(
             is_resolved,
             author,
             reply_count,
+            note,
             ..
         } = &rows[i]
         {
@@ -171,6 +172,7 @@ pub(super) fn find_comment_blocks(
                 *is_resolved,
                 author,
                 *reply_count,
+                note.as_deref(),
             ) {
                 i = block.footer_idx + 1;
                 blocks.push(block);
@@ -186,6 +188,7 @@ pub(super) fn find_comment_blocks(
 
 /// Walk forward from a root header to its footer, collecting body lines.
 /// Returns `None` if no footer is found or the block ends before `scroll`.
+#[allow(clippy::too_many_arguments)]
 fn collect_block(
     rows: &[DisplayRow],
     header_idx: usize,
@@ -194,9 +197,10 @@ fn collect_block(
     is_resolved: bool,
     author: &str,
     reply_count: usize,
+    note: Option<&str>,
 ) -> Option<CommentBlock> {
     let (bg, border_color, fg) = thread_colors(is_pending, is_resolved);
-    let header_title = build_title(is_pending, is_resolved, author, reply_count, fg);
+    let header_title = build_title(is_pending, is_resolved, author, reply_count, note, fg);
 
     let mut body_lines = Vec::new();
     let mut j = header_idx + 1;
@@ -287,6 +291,7 @@ fn build_title(
     is_resolved: bool,
     author: &str,
     reply_count: usize,
+    note: Option<&str>,
     fg: Color,
 ) -> Line<'static> {
     let mut spans = Vec::new();
@@ -301,6 +306,12 @@ fn build_title(
             format!(" 💬 {author} "),
             Style::default().fg(fg).add_modifier(Modifier::BOLD),
         ));
+        if let Some(note) = note {
+            spans.push(Span::styled(
+                format!("· {note} "),
+                Style::default().fg(fg).add_modifier(Modifier::DIM),
+            ));
+        }
         if is_resolved {
             spans.push(Span::styled("✓ Resolved ", Style::default().fg(fg)));
         }

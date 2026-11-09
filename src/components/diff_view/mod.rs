@@ -275,6 +275,7 @@ impl DiffView {
             Some(DisplayRow::FileHeader { .. }) => RowContext::File,
             Some(DisplayRow::DiffLine { .. })
             | Some(DisplayRow::HunkHeader { .. })
+            | Some(DisplayRow::SectionHeader { .. })
             | Some(DisplayRow::ExpandHint { .. }) => RowContext::Code,
             Some(DisplayRow::CommentBodyLine {
                 is_suggestion: true,

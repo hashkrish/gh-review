@@ -406,6 +406,27 @@ pub struct ExistingComment {
     pub created_at: String,
     #[serde(default)]
     pub in_reply_to_id: Option<u64>,
+    /// The line the comment was written on. For an outdated comment (`line`
+    /// is `None` because the code has since changed) this is where it used
+    /// to be.
+    #[serde(default)]
+    pub original_line: Option<usize>,
+    /// `"file"` for a comment on a whole file, `"line"` for a line comment.
+    /// Lowercased; `None` where GitHub doesn't say.
+    #[serde(default)]
+    pub subject_type: Option<String>,
+}
+
+impl ExistingComment {
+    /// A comment on a whole file rather than a line.
+    pub fn is_file_level(&self) -> bool {
+        self.subject_type.as_deref() == Some("file")
+    }
+
+    /// A conversation comment or review summary: not attached to any file.
+    pub fn is_pr_level(&self) -> bool {
+        self.path.is_empty()
+    }
 }
 
 #[derive(Debug, Deserialize)]

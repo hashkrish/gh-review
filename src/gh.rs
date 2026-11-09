@@ -135,6 +135,8 @@ fn parse_review_bodies(pr: &serde_json::Value) -> Vec<ExistingComment> {
                 user: PrUser { login },
                 created_at: node["createdAt"].as_str().unwrap_or("").to_string(),
                 in_reply_to_id: None,
+                original_line: None,
+                subject_type: None,
             });
         }
     }
@@ -380,6 +382,8 @@ pub async fn fetch_review_comments(repo: &str, pr_number: u64) -> Result<Vec<Exi
             user: ic.user,
             created_at: ic.created_at,
             in_reply_to_id: None,
+            original_line: None,
+            subject_type: None,
         }));
     }
 
@@ -809,7 +813,7 @@ fragment PrFields on PullRequest {
             id isResolved
             comments(first: 100) {
                 nodes {
-                    databaseId body path line startLine createdAt
+                    databaseId body path line originalLine startLine subjectType createdAt
                     author { login }
                     replyTo { databaseId }
                 }
@@ -901,6 +905,8 @@ fragment PrFields on PullRequest {
                             },
                             created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
                             in_reply_to_id: reply_to,
+                            original_line: c["originalLine"].as_u64().map(|v| v as usize),
+                            subject_type: c["subjectType"].as_str().map(str::to_lowercase),
                         });
                     }
                 }
@@ -922,6 +928,8 @@ fragment PrFields on PullRequest {
                     },
                     created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
                     in_reply_to_id: None,
+                    original_line: None,
+                    subject_type: None,
                 });
             }
         }

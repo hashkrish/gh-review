@@ -22,6 +22,8 @@ fn comment(
         },
         created_at: "2026-11-09T07:00:00Z".to_string(),
         in_reply_to_id: reply_to,
+        original_line: None,
+        subject_type: None,
     }
 }
 
@@ -175,6 +177,74 @@ fn graphite_stack_comments_are_left_out() {
 fn file_level_comments_have_no_line() {
     let e = entries(&[comment(1, None, "a.rs", None, "about the file")], &[]);
     assert_eq!(e[0].line, None);
+}
+
+fn kinds_of_anchor() -> Vec<ExistingComment> {
+    vec![
+        comment(1, None, "a.rs", Some(4), "on a line"),
+        ExistingComment {
+            original_line: Some(12),
+            ..comment(2, None, "a.rs", None, "outdated")
+        },
+        ExistingComment {
+            subject_type: Some("file".into()),
+            ..comment(3, None, "a.rs", None, "whole file")
+        },
+        comment(4, None, "", None, "conversation"),
+    ]
+}
+
+#[test]
+fn comments_are_classified_by_where_they_sit() {
+    let e = entries(&kinds_of_anchor(), &[draft("a.rs", 9, "d")]);
+    let anchor_of = |root: u64| e.iter().find(|x| x.root_id == Some(root)).unwrap().anchor;
+    assert_eq!(anchor_of(1), Anchor::Line(4));
+    assert_eq!(anchor_of(2), Anchor::Outdated(Some(12)));
+    assert_eq!(anchor_of(3), Anchor::File);
+    assert_eq!(anchor_of(4), Anchor::Conversation);
+    assert_eq!(
+        e.iter()
+            .find(|x| x.kind == EntryKind::Draft)
+            .unwrap()
+            .anchor,
+        Anchor::Line(9)
+    );
+}
+
+#[test]
+fn an_outdated_comment_without_an_original_line_is_still_outdated() {
+    let e = entries(&[comment(1, None, "a.rs", None, "x")], &[]);
+    assert_eq!(e[0].anchor, Anchor::Outdated(None));
+}
+
+#[test]
+fn conversation_comments_sort_after_everything_else() {
+    // An empty path would otherwise sort first.
+    let e = entries(&kinds_of_anchor(), &[draft("z.rs", 1, "last file")]);
+    assert_eq!(e.last().unwrap().anchor, Anchor::Conversation);
+    assert_ne!(e.first().unwrap().anchor, Anchor::Conversation);
+}
+
+#[test]
+fn rows_label_each_kind_of_anchor() {
+    let mut p = panel(entries(&kinds_of_anchor(), &[]));
+    let out = render(&mut p, 14);
+    assert!(out.contains("a.rs:4"), "{out}");
+    assert!(out.contains("a.rs (outdated, was :12)"), "{out}");
+    assert!(out.contains("a.rs (file)"), "{out}");
+    assert!(out.contains("PR conversation"), "{out}");
+}
+
+#[test]
+fn conversation_comments_are_not_counted_as_unresolved_threads() {
+    let mut p = panel(entries(&kinds_of_anchor(), &[]));
+    assert_eq!(p.len(), 4);
+    p.cycle_filter(); // unresolved
+    assert_eq!(
+        p.len(),
+        3,
+        "the three review comments, not the conversation"
+    );
 }
 
 #[test]
