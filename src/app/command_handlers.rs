@@ -404,6 +404,15 @@ pub fn sync_drafts(app: &mut App) {
     app.request_pull(app.pr_number);
 }
 
+pub fn toggle_viewed(app: &mut App) {
+    app.toggle_file_viewed();
+}
+
+pub fn sync_viewed(app: &mut App) {
+    app.status.info("Syncing viewed files...");
+    app.request_viewed_pull(app.pr_number);
+}
+
 pub fn resolve(app: &mut App) {
     if let Some(target) = app.diff_view.thread_resolve_target() {
         app.toggle_resolve_thread(target.thread_node_id, target.is_resolved);

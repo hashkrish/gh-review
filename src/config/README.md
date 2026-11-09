@@ -149,6 +149,8 @@ Only include the ones you want to change.
 | `discard`                      | `x`        | Discard pending comment           |
 | `accept_suggestion`            | `y`        | Accept suggestion                 |
 | `sync_drafts`                  | —          | Sync drafts with GitHub pending review |
+| `toggle_viewed`                | `m`        | Mark file viewed / unviewed       |
+| `sync_viewed`                  | —          | Sync viewed files with GitHub     |
 | `expand_all_comments`          | —          | Expand all comment threads        |
 | `collapse_all_comments`        | —          | Collapse all comment threads      |
 

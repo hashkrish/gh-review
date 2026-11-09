@@ -97,6 +97,8 @@ define_commands! {
     file_filter,          "Filter file list",              false;
     toggle_file_panel,    "Toggle file list panel",        true;
     sync_drafts,          "Sync drafts with GitHub pending review", true;
+    toggle_viewed,        "Mark file viewed / unviewed",   true;
+    sync_viewed,          "Sync viewed files with GitHub", true;
     open_command_mode,    "Open command prompt",            false;
     fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;

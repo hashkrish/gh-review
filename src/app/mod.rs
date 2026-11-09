@@ -5,6 +5,7 @@ mod draft_sync;
 mod handlers;
 pub(crate) mod keymap;
 mod ui;
+mod viewed_sync;
 
 use tokio::sync::mpsc;
 
@@ -92,6 +93,9 @@ pub struct App {
     /// Node ids of drafts deleted locally; never re-imported from GitHub.
     pub(crate) tombstones: HashSet<String>,
     pub(crate) sync_conflicts: VecDeque<Conflict>,
+    /// Viewed-checkbox pushes not yet confirmed, per `(pr, path)`. A pull must
+    /// not overwrite a file whose own toggle is still in flight.
+    pub(crate) viewed_inflight: HashMap<(u64, String), usize>,
 
     pub(crate) file_picker: FilePicker,
     pub(crate) file_panel_visible: bool,
@@ -149,6 +153,7 @@ impl App {
             next_local_id: 1,
             tombstones: HashSet::new(),
             sync_conflicts: VecDeque::new(),
+            viewed_inflight: HashMap::new(),
             file_picker: FilePicker::new(),
             file_panel_visible: true,
             diff_view: DiffView::new(),
@@ -279,6 +284,8 @@ impl App {
                 self.files = files;
                 self.rebuild_display();
                 self.loading = false;
+                // Needs the file list, so it can't be requested any earlier.
+                self.request_viewed_pull(pr);
             }
             AppEvent::CommentsLoaded { pr, data: comments } if pr == self.pr_number => {
                 self.stack.load_from_comments(&comments, self.pr_number);
@@ -460,6 +467,7 @@ impl App {
             self.stack.current_pr = pr_number;
             self.loading = false;
             self.request_pull(pr_number);
+            self.request_viewed_pull(pr_number);
             true
         } else {
             false

@@ -1,5 +1,5 @@
 //! Two-way sync between local draft comments and the viewer's pending review
-//! on GitHub.
+//! on GitHub, plus the per-file "Viewed" checkbox.
 //!
 //! Local changes are pushed through a single ordered worker task, so a draft's
 //! create, edit and delete always reach GitHub in the order they were made.
@@ -32,6 +32,15 @@ pub enum SyncOp {
         node_id: String,
     },
     Pull {
+        pr: u64,
+    },
+    /// Set or clear GitHub's per-file "Viewed" checkbox.
+    SetViewed {
+        pr: u64,
+        path: String,
+        viewed: bool,
+    },
+    PullViewed {
         pr: u64,
     },
     /// Submit the pending review. `unlinked` are drafts that never reached
@@ -75,6 +84,24 @@ pub enum SyncEvent {
     PullFailed {
         error: String,
     },
+    ViewedSet {
+        pr: u64,
+        path: String,
+    },
+    ViewedSetFailed {
+        pr: u64,
+        path: String,
+        /// The state that was being pushed, so the app can revert it.
+        viewed: bool,
+        error: String,
+    },
+    ViewedPulled {
+        pr: u64,
+        states: HashMap<String, bool>,
+    },
+    ViewedPullFailed {
+        error: String,
+    },
 }
 
 pub fn spawn_worker(
@@ -91,9 +118,28 @@ pub fn spawn_worker(
         let mut created: HashSet<u64> = HashSet::new();
         // Pending review id per PR, so each op doesn't re-query it.
         let mut review_ids: HashMap<u64, String> = HashMap::new();
+        // PR node ids, needed by the viewed-file mutations.
+        let mut pr_node_ids: HashMap<u64, String> = HashMap::new();
 
         while let Some(op) = rx.recv().await {
             match op {
+                SyncOp::SetViewed { pr, path, viewed } => {
+                    match set_viewed(&repo, pr, &path, viewed, &mut pr_node_ids).await {
+                        Ok(()) => send(SyncEvent::ViewedSet { pr, path }),
+                        Err(e) => send(SyncEvent::ViewedSetFailed {
+                            pr,
+                            path,
+                            viewed,
+                            error: format!("{e:#}"),
+                        }),
+                    }
+                }
+                SyncOp::PullViewed { pr } => match crate::gh::fetch_viewed_files(&repo, pr).await {
+                    Ok(states) => send(SyncEvent::ViewedPulled { pr, states }),
+                    Err(e) => send(SyncEvent::ViewedPullFailed {
+                        error: format!("{e:#}"),
+                    }),
+                },
                 SyncOp::Create { pr, comment } => {
                     if created.contains(&comment.local_id) {
                         continue;
@@ -176,6 +222,24 @@ pub fn spawn_worker(
             }
         }
     });
+}
+
+async fn set_viewed(
+    repo: &str,
+    pr: u64,
+    path: &str,
+    viewed: bool,
+    pr_node_ids: &mut HashMap<u64, String>,
+) -> anyhow::Result<()> {
+    let pr_node_id = match pr_node_ids.get(&pr) {
+        Some(id) => id.clone(),
+        None => {
+            let id = crate::gh::fetch_pr_node_id(repo, pr).await?;
+            pr_node_ids.insert(pr, id.clone());
+            id
+        }
+    };
+    crate::gh::set_file_viewed(&pr_node_id, path, viewed).await
 }
 
 async fn review_id_for(

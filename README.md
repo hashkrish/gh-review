@@ -122,6 +122,7 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `zo` / `zc` | Expand / collapse file fold |
 | `e` | Suggest change on current line |
 | `E` | Expand context around cursor (+10 lines) |
+| `m` | Mark file viewed / unviewed (diff or file list; syncs with GitHub) |
 
 ### Review
 
@@ -138,6 +139,12 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `y` | Accept suggestion (apply as commit) |
 
 Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
+
+#### Viewed files
+
+`m` toggles GitHub's per-file "Viewed" checkbox for the file at the cursor (or selected in the file list), the same checkbox as on github.com. Viewed files show a `✓` in the file list and header, and fold like on github.com; unmarking unfolds them.
+
+The state is synced both ways: toggling pushes to GitHub immediately, and GitHub's state is pulled once the file list loads and with `:sync_viewed`. If a push fails, the toggle is reverted and the error is shown.
 
 #### Pending review sync
 

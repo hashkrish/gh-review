@@ -11,7 +11,7 @@ use crate::types::{ReviewComment, ReviewEvent};
 use super::App;
 
 impl App {
-    fn enqueue(&self, op: SyncOp) {
+    pub(super) fn enqueue(&self, op: SyncOp) {
         let _ = self.sync_tx.send(op);
     }
 
@@ -125,6 +125,17 @@ impl App {
             SyncEvent::PullFailed { error } => self
                 .status
                 .error(format!("Couldn't sync pending review: {error}")),
+            SyncEvent::ViewedSet { pr, path } => self.on_viewed_set(pr, path),
+            SyncEvent::ViewedSetFailed {
+                pr,
+                path,
+                viewed,
+                error,
+            } => self.on_viewed_set_failed(pr, path, viewed, error),
+            SyncEvent::ViewedPulled { pr, states } => self.on_viewed_pulled(pr, states),
+            SyncEvent::ViewedPullFailed { error } => self
+                .status
+                .error(format!("Couldn't sync viewed files: {error}")),
         }
     }
 

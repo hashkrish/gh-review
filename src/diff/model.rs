@@ -17,6 +17,7 @@ pub enum DisplayRow {
         path: String,
         file_idx: usize,
         collapsed: bool,
+        viewed: bool,
     },
     HunkHeader {
         text: String,
@@ -245,6 +246,7 @@ pub fn build_display_rows(
             path: file.path.clone(),
             file_idx,
             collapsed,
+            viewed: file.viewed,
         });
 
         if collapsed {

@@ -316,6 +316,7 @@ pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>>
             additions: f.additions,
             deletions: f.deletions,
             hunks,
+            viewed: false,
         });
 
         crate::highlight::highlight_file(files.last_mut().unwrap());
@@ -603,6 +604,91 @@ pub async fn delete_draft_comment(node_id: &str) -> Result<()> {
         }
     "#;
     graphql_checked(mutation, &serde_json::json!({ "input": { "id": node_id } })).await?;
+    Ok(())
+}
+
+/// GraphQL node id of a PR, needed by the viewed-file mutations.
+pub async fn fetch_pr_node_id(repo: &str, pr_number: u64) -> Result<String> {
+    let (owner, name) = split_repo(repo)?;
+    let query = r#"
+        query($owner: String!, $name: String!, $pr: Int!) {
+            repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) { id }
+            }
+        }
+    "#;
+    let vars = serde_json::json!({ "owner": owner, "name": name, "pr": pr_number });
+    let result = graphql_checked(query, &vars).await?;
+    result["data"]["repository"]["pullRequest"]["id"]
+        .as_str()
+        .map(String::from)
+        .context("Failed to resolve PR node ID")
+}
+
+/// Fetch the viewer's "Viewed" checkbox state for every changed file.
+/// `DISMISSED` (marked viewed, then changed again) counts as not viewed, which
+/// is how GitHub shows it.
+pub async fn fetch_viewed_files(repo: &str, pr_number: u64) -> Result<HashMap<String, bool>> {
+    let (owner, name) = split_repo(repo)?;
+
+    let query = r#"
+        query($owner: String!, $name: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                    files(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { path viewerViewedState }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let mut states = HashMap::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let vars = serde_json::json!({
+            "owner": owner,
+            "name": name,
+            "pr": pr_number,
+            "cursor": cursor,
+        });
+        let result = graphql_checked(query, &vars).await?;
+        let files = &result["data"]["repository"]["pullRequest"]["files"];
+        if let Some(nodes) = files["nodes"].as_array() {
+            for node in nodes {
+                if let Some(path) = node["path"].as_str() {
+                    let viewed = node["viewerViewedState"].as_str() == Some("VIEWED");
+                    states.insert(path.to_string(), viewed);
+                }
+            }
+        }
+        if files["pageInfo"]["hasNextPage"].as_bool().unwrap_or(false) {
+            cursor = files["pageInfo"]["endCursor"].as_str().map(String::from);
+        } else {
+            break;
+        }
+    }
+    Ok(states)
+}
+
+/// Set or clear the "Viewed" checkbox for one file.
+pub async fn set_file_viewed(pr_node_id: &str, path: &str, viewed: bool) -> Result<()> {
+    let mutation = if viewed {
+        r#"
+            mutation($input: MarkFileAsViewedInput!) {
+                markFileAsViewed(input: $input) { pullRequest { id } }
+            }
+        "#
+    } else {
+        r#"
+            mutation($input: UnmarkFileAsViewedInput!) {
+                unmarkFileAsViewed(input: $input) { pullRequest { id } }
+            }
+        "#
+    };
+    let input = serde_json::json!({ "pullRequestId": pr_node_id, "path": path });
+    graphql_checked(mutation, &serde_json::json!({ "input": input })).await?;
     Ok(())
 }
 

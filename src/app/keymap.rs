@@ -470,6 +470,7 @@ impl Keymap {
             // General
             (one("description"), "Toggle description panel"),
             (one("toggle_file_panel"), "Toggle file list panel"),
+            (one("toggle_viewed"), "Mark file viewed / unviewed"),
             (one("toggle_view"), "Toggle unified / side-by-side"),
             (one("open_browser"), "Open in browser"),
             (one("quit"), "Quit"),
@@ -789,6 +790,15 @@ impl Keymap {
         defs.push(B::global(
             &command::toggle_file_panel,
             vec![Single('b'.into())],
+        ));
+
+        // ── Viewed-file checkbox ──────────────────────────────────────
+        defs.push(B::multi(
+            vec![Single('m'.into())],
+            vec![
+                S::on(Diff, &command::toggle_viewed),
+                S::on(Picker, &command::toggle_viewed),
+            ],
         ));
 
         // ── Description panel keys ────────────────────────────────────

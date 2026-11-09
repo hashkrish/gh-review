@@ -22,6 +22,7 @@ pub struct FileEntry {
     pub status: FileStatus,
     pub additions: usize,
     pub deletions: usize,
+    pub viewed: bool,
 }
 
 impl FilePicker {
@@ -44,6 +45,7 @@ impl FilePicker {
                 status: f.status.clone(),
                 additions: f.additions,
                 deletions: f.deletions,
+                viewed: f.viewed,
             })
             .collect();
         if self.selected >= self.files.len() && !self.files.is_empty() {
@@ -199,7 +201,7 @@ impl FilePicker {
                     _ => Theme::status_modified(),
                 };
 
-                let short_path = shorten_path(&f.path, inner.width.saturating_sub(12) as usize);
+                let short_path = shorten_path(&f.path, inner.width.saturating_sub(14) as usize);
                 let style = if display_idx == display_selected {
                     Theme::file_list_selected()
                 } else {
@@ -208,6 +210,7 @@ impl FilePicker {
 
                 ListItem::new(Line::from(vec![
                     Span::styled(format!("{} ", f.status.symbol()), status_style),
+                    Span::styled(if f.viewed { "✓ " } else { "  " }, Theme::status_added()),
                     Span::styled(short_path, style),
                     Span::styled(format!(" +{}", f.additions), Theme::status_added()),
                     Span::styled(format!(" -{}", f.deletions), Theme::status_deleted()),

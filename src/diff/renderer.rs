@@ -34,11 +34,15 @@ pub fn render_unified_row(
 ) -> Line<'static> {
     let base_line = match row {
         DisplayRow::FileHeader {
-            path, collapsed, ..
+            path,
+            collapsed,
+            viewed,
+            ..
         } => {
             let indicator = if *collapsed { "▶" } else { "▼" };
+            let viewed_mark = if *viewed { " ✓ viewed" } else { "" };
             Line::from(vec![Span::styled(
-                format!("{indicator} ─── {path} ───"),
+                format!("{indicator} ─── {path} ───{viewed_mark}"),
                 Theme::file_header(),
             )])
         }

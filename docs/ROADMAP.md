@@ -98,6 +98,7 @@ Complete the review comment workflow to cover all standard GitHub review operati
 **Pending comment management**
 - Discard pending comment — cursor on a pending comment, press `x` to remove from the pending review
 - Edit pending comment — cursor on a pending comment, press `c` to re-open the textarea pre-filled with the existing body
+- Viewed-file sync — `m` toggles GitHub's per-file "Viewed" checkbox (pushed immediately, pulled after the file list loads and with `:sync_viewed`); viewed files fold and show a `✓`
 - Two-way sync with GitHub's pending review — add/edit/discard push immediately, pull on PR open and `:sync_drafts`, conflict prompt (`l` keep mine / `g` keep GitHub's) when both sides changed
 
 **Multi-line comment selection** (pulled forward from M6)

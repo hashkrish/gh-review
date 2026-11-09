@@ -86,6 +86,8 @@ pub struct DiffFile {
     pub additions: usize,
     pub deletions: usize,
     pub hunks: Vec<Hunk>,
+    /// GitHub's per-file "Viewed" checkbox for the current user.
+    pub viewed: bool,
 }
 
 #[derive(Debug, Clone)]
