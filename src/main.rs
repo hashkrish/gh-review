@@ -18,7 +18,7 @@ mod types;
 use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::{
-    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
+    event::{PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
     let _ = execute!(
         stdout,
-        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        PushKeyboardEnhancementFlags(terminal::keyboard_enhancement_flags())
     );
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;

@@ -54,8 +54,11 @@ pub fn parse_key_string(s: &str) -> Option<KeyBinding> {
         {
             code = KeyCode::Char(c);
         }
-        // Strip SHIFT for Char to match KeyCombo::from(&KeyEvent) behavior
-        modifiers.remove(KeyModifiers::SHIFT);
+        // Strip SHIFT for Char to match KeyCombo::from(&KeyEvent) behavior,
+        // which keeps it only for Space (it has no shifted form).
+        if code != KeyCode::Char(' ') {
+            modifiers.remove(KeyModifiers::SHIFT);
+        }
     }
 
     Some(KeyBinding::Single(KeyCombo { code, modifiers }))
@@ -78,7 +81,12 @@ pub fn format_key_combo(combo: &KeyCombo) -> String {
     if combo.modifiers == KeyModifiers::NONE
         && let KeyCode::Char(c) = combo.code
     {
-        return c.to_string();
+        // A bare space would render as a blank label.
+        return if c == ' ' {
+            "Space".to_string()
+        } else {
+            c.to_string()
+        };
     }
     let kc = KeyCombination::new(combo.code, combo.modifiers);
     display_format().to_string(kc)
@@ -150,6 +158,14 @@ mod tests {
         assert_single("q", KeyCode::Char('q'), KeyModifiers::NONE);
         assert_single("/", KeyCode::Char('/'), KeyModifiers::NONE);
         assert_single("!", KeyCode::Char('!'), KeyModifiers::NONE);
+    }
+
+    #[test]
+    fn space_and_shift_space_are_distinct_and_labelled() {
+        assert_single("Space", KeyCode::Char(' '), KeyModifiers::NONE);
+        assert_single("Shift-Space", KeyCode::Char(' '), KeyModifiers::SHIFT);
+        assert_eq!(format_key_combo(&KeyCombo::from(' ')), "Space");
+        assert!(format_key_combo(&KeyCombo::shift_space()).contains("Space"));
     }
 
     #[test]

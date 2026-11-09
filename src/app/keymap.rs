@@ -47,6 +47,13 @@ impl KeyCombo {
         }
     }
 
+    pub fn shift_space() -> Self {
+        Self {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::SHIFT,
+        }
+    }
+
     pub fn super_key(code: KeyCode) -> Self {
         Self {
             code,
@@ -58,7 +65,12 @@ impl KeyCombo {
 impl From<&KeyEvent> for KeyCombo {
     fn from(event: &KeyEvent) -> Self {
         let mut modifiers = event.modifiers;
-        if let KeyCode::Char(_) = event.code {
+        // Shift is already folded into the character for most keys ('A',
+        // '?'), so it's dropped. Space has no shifted form, so Shift is the
+        // only thing telling `Shift+Space` from `Space`.
+        if let KeyCode::Char(c) = event.code
+            && c != ' '
+        {
             modifiers.remove(KeyModifiers::SHIFT);
         }
         Self {
@@ -613,14 +625,17 @@ impl Keymap {
                 ],
             ),
             B::multi(
-                vec![Single(KeyCombo::ctrl('f'))],
+                vec![Single(KeyCombo::ctrl('f')), Single(' '.into())],
                 vec![
                     S::on(Diff, &command::full_page_down),
                     S::on(Description, &command::desc_page_down),
                 ],
             ),
             B::multi(
-                vec![Single(KeyCombo::ctrl('b'))],
+                vec![
+                    Single(KeyCombo::ctrl('b')),
+                    Single(KeyCombo::shift_space()),
+                ],
                 vec![
                     S::on(Diff, &command::full_page_up),
                     S::on(Description, &command::desc_page_up),

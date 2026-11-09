@@ -41,6 +41,65 @@ fn press(app: &mut App, code: crossterm::event::KeyCode) {
     ));
 }
 
+fn command_for(
+    app: &App,
+    code: crossterm::event::KeyCode,
+    mods: crossterm::event::KeyModifiers,
+) -> Option<&'static str> {
+    use super::keymap::LookupResult;
+    let key = crossterm::event::KeyEvent::new(code, mods);
+    match app
+        .keymap
+        .lookup(&key, Focus::DiffView, crate::types::RowContext::Code)
+    {
+        LookupResult::Command(cmd) => Some(cmd.name),
+        _ => None,
+    }
+}
+
+#[test]
+fn space_pages_down_and_shift_space_pages_up() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let app = app_with_three_files();
+    assert_eq!(
+        command_for(&app, KeyCode::Char(' '), KeyModifiers::NONE),
+        Some("full_page_down")
+    );
+    assert_eq!(
+        command_for(&app, KeyCode::Char(' '), KeyModifiers::SHIFT),
+        Some("full_page_up")
+    );
+}
+
+#[test]
+fn ctrl_f_and_ctrl_b_still_page() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let app = app_with_three_files();
+    assert_eq!(
+        command_for(&app, KeyCode::Char('f'), KeyModifiers::CONTROL),
+        Some("full_page_down")
+    );
+    assert_eq!(
+        command_for(&app, KeyCode::Char('b'), KeyModifiers::CONTROL),
+        Some("full_page_up")
+    );
+}
+
+#[test]
+fn shift_is_still_ignored_for_shifted_characters() {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    let app = app_with_three_files();
+    // `G` arrives as Char('G') with SHIFT on some terminals, none on others.
+    assert_eq!(
+        command_for(&app, KeyCode::Char('G'), KeyModifiers::SHIFT),
+        command_for(&app, KeyCode::Char('G'), KeyModifiers::NONE)
+    );
+    assert_eq!(
+        command_for(&app, KeyCode::Char('G'), KeyModifiers::NONE),
+        Some("goto_last")
+    );
+}
+
 #[test]
 fn enter_in_the_file_list_moves_focus_to_the_diff() {
     let mut app = app_with_three_files();

@@ -83,8 +83,8 @@ Only include the ones you want to change.
 | `scroll_up`           | `k`, `Up`         | Scroll up one line                |
 | `half_page_down`      | `Ctrl-d`          | Scroll down half page             |
 | `half_page_up`        | `Ctrl-u`          | Scroll up half page               |
-| `full_page_down`      | `Ctrl-f`          | Scroll down full page             |
-| `full_page_up`        | `Ctrl-b`          | Scroll up full page               |
+| `full_page_down`      | `Ctrl-f`, `Space` | Scroll down full page             |
+| `full_page_up`        | `Ctrl-b`, `Shift-Space` | Scroll up full page         |
 | `goto_first`          | `gg`              | Go to first line                  |
 | `goto_last`           | `G`               | Go to last line                   |
 | `screen_top`          | `H`               | Cursor to screen top              |

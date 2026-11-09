@@ -80,6 +80,7 @@ gh-dash (browse PRs)
 | `gg` / `G` | Go to first / last line |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Full page down / up |
+| `Space` / `Shift+Space` | Full page down / up (`Shift+Space` needs a terminal with the kitty keyboard protocol, e.g. kitty, Ghostty, WezTerm, foot) |
 | `H` / `M` / `L` | Cursor to screen top / middle / bottom |
 | `]` / `}` | Next hunk (diff) / next section (description) |
 | `[` / `{` | Previous hunk (diff) / previous section (description) |
