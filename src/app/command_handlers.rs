@@ -184,12 +184,26 @@ pub fn switch_focus(app: &mut App) {
 
 pub fn next_panel(app: &mut App) {
     let desc_open = app.description_panel.visible;
-    app.focus = app.focus.next(desc_open);
+    let files_open = app.file_panel_visible;
+    app.focus = app.focus.next(desc_open, files_open);
 }
 
 pub fn prev_panel(app: &mut App) {
     let desc_open = app.description_panel.visible;
-    app.focus = app.focus.prev(desc_open);
+    let files_open = app.file_panel_visible;
+    app.focus = app.focus.prev(desc_open, files_open);
+}
+
+pub fn toggle_file_panel(app: &mut App) {
+    if app.file_panel_visible {
+        app.file_panel_visible = false;
+        if app.focus == super::Focus::FilePicker {
+            app.focus = super::Focus::DiffView;
+        }
+    } else {
+        app.file_panel_visible = true;
+        app.focus = super::Focus::FilePicker;
+    }
 }
 
 pub fn toggle_view(app: &mut App) {

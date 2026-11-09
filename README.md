@@ -98,8 +98,9 @@ gh-dash (browse PRs)
 | `l` / `→` | Focus next panel |
 | `Tab` | Cycle panel focus |
 | `Esc` | Close description panel (when focused) |
+| `b` | Toggle file list panel |
 
-Panels: **File List** ↔ **Diff** ↔ **Description** (when open).
+Panels: **File List** ↔ **Diff** ↔ **Description** (when open). The file list can be hidden with `b`, which gives the diff the full width.
 
 ### Search
 
