@@ -33,6 +33,7 @@ impl App {
         } else {
             // The right-hand drawer holds one panel at a time.
             self.description_panel.visible = false;
+            self.comments_panel.visible = false;
             self.commits_panel.visible = true;
             self.focus = Focus::Commits;
             if !self.commits_panel.is_loaded() {

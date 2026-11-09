@@ -1,6 +1,7 @@
 pub(crate) mod command;
 mod command_handlers;
 pub(crate) mod custom_action;
+mod comments;
 mod commits;
 mod draft_sync;
 mod handlers;
@@ -14,6 +15,7 @@ use tokio::sync::mpsc;
 
 use crate::components::command_bar::CommandBar;
 use crate::components::comment_input::CommentInput;
+use crate::components::comments_panel::CommentsPanel;
 use crate::components::commits_panel::CommitsPanel;
 use crate::components::description_panel::DescriptionPanel;
 use crate::components::diff_view::DiffView;
@@ -35,6 +37,7 @@ pub(crate) enum Focus {
     DiffView,
     Description,
     Commits,
+    Comments,
 }
 
 impl Focus {
@@ -110,6 +113,9 @@ pub struct App {
     /// The full PR diff's files, set aside while a commit/since view shows.
     pub(crate) full_files: Vec<DiffFile>,
 
+    /// Lists the PR's review threads and your drafts (see `comments.rs`).
+    pub(crate) comments_panel: CommentsPanel,
+
     pub(crate) file_picker: FilePicker,
     pub(crate) file_panel_visible: bool,
     pub(crate) diff_view: DiffView,
@@ -171,6 +177,7 @@ impl App {
             diff_source: DiffSource::Full,
             pending_source: None,
             full_files: Vec::new(),
+            comments_panel: CommentsPanel::new(),
             file_picker: FilePicker::new(),
             file_panel_visible: true,
             diff_view: DiffView::new(),
@@ -405,14 +412,19 @@ impl App {
             self.diff_view
                 .rebuild_rows(&self.files, &[], &[], &[], &HashMap::new());
         }
+        // Every change to the comment data ends up here, so the panel's list
+        // (which is built from the real data even in a commit view) follows.
+        self.refresh_comments_panel();
     }
 
-    /// The open right-hand drawer, if any (the two are mutually exclusive).
+    /// The open right-hand drawer, if any (they are mutually exclusive).
     pub(crate) fn right_drawer(&self) -> Option<Focus> {
         if self.description_panel.visible {
             Some(Focus::Description)
         } else if self.commits_panel.visible {
             Some(Focus::Commits)
+        } else if self.comments_panel.visible {
+            Some(Focus::Comments)
         } else {
             None
         }
@@ -549,6 +561,7 @@ impl App {
         if self.commits_panel.visible {
             self.request_commits();
         }
+        self.refresh_comments_panel();
     }
 
     /// Keep the file list's selection on the file under the diff cursor, so

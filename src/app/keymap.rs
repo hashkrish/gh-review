@@ -94,6 +94,7 @@ enum Panel {
     Picker,
     Description,
     Commits,
+    Comments,
 }
 
 const ALL_PANELS: &[Panel] = &[
@@ -101,6 +102,7 @@ const ALL_PANELS: &[Panel] = &[
     Panel::Picker,
     Panel::Description,
     Panel::Commits,
+    Panel::Comments,
 ];
 
 /// Controls when a bar hint is visible and what label it displays.
@@ -199,6 +201,14 @@ impl BindingDef {
         }
     }
 
+    fn comments(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Comments, cmd)],
+            context: None,
+        }
+    }
+
     fn commits(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
         Self {
             keys,
@@ -254,6 +264,7 @@ pub struct Keymap {
     file_picker: HashMap<KeyCombo, &'static Command>,
     description: HashMap<KeyCombo, &'static Command>,
     commits: HashMap<KeyCombo, &'static Command>,
+    comments: HashMap<KeyCombo, &'static Command>,
     pending: PendingMap,
     labels: HashMap<&'static str, Vec<String>>,
     bar_entries: Vec<BarEntry>,
@@ -284,7 +295,10 @@ impl Keymap {
     pub fn lookup(&self, key: &KeyEvent, focus: Focus, context: RowContext) -> LookupResult {
         let combo = KeyCombo::from(key);
 
-        if matches!(focus, Focus::DiffView | Focus::Description | Focus::Commits)
+        if matches!(
+            focus,
+            Focus::DiffView | Focus::Description | Focus::Commits | Focus::Comments
+        )
             && let KeyCode::Char(c) = combo.code
             && combo.modifiers == KeyModifiers::NONE
             && self.pending.contains_key(&c)
@@ -325,6 +339,12 @@ impl Keymap {
                 .copied()
                 .map(LookupResult::Command)
                 .unwrap_or(LookupResult::None),
+            Focus::Comments => self
+                .comments
+                .get(&combo)
+                .copied()
+                .map(LookupResult::Command)
+                .unwrap_or(LookupResult::None),
         }
     }
 
@@ -339,6 +359,7 @@ impl Keymap {
             Focus::FilePicker => Panel::Picker,
             Focus::Description => Panel::Description,
             Focus::Commits => Panel::Commits,
+            Focus::Comments => Panel::Comments,
         };
         self.pending
             .get(&prefix)
@@ -376,6 +397,7 @@ impl Keymap {
             Focus::FilePicker => Panel::Picker,
             Focus::Description => Panel::Description,
             Focus::Commits => Panel::Commits,
+            Focus::Comments => Panel::Comments,
         };
         let cs = context.comment_state();
 
@@ -507,6 +529,7 @@ impl Keymap {
             (one("toggle_file_panel"), "Toggle file list panel"),
             (one("toggle_viewed"), "Mark file viewed / unviewed"),
             (one("toggle_commits"), "Toggle commits panel"),
+            (one("toggle_comments"), "Toggle comments panel"),
             (one("toggle_view"), "Toggle unified / side-by-side"),
             (one("open_browser"), "Open in browser"),
             (one("quit"), "Quit"),
@@ -567,7 +590,7 @@ impl Keymap {
     fn default_binding_defs() -> Vec<BindingDef> {
         use BindingDef as B;
         use KeyBinding::{Pending, Single};
-        use Panel::{Commits, Description, Diff, Picker};
+        use Panel::{Comments, Commits, Description, Diff, Picker};
         use ScopeBinding as S;
 
         let key_down = vec![Single('j'.into()), Single(KeyCode::Down.into())];
@@ -584,6 +607,7 @@ impl Keymap {
                     S::on(Picker, &command::quit),
                     S::on(Description, &command::description),
                     S::on(Commits, &command::toggle_commits),
+                    S::on(Comments, &command::toggle_comments),
                 ],
             ),
             B::multi(
@@ -593,6 +617,7 @@ impl Keymap {
                     S::on(Picker, &command::escape),
                     S::on(Description, &command::desc_close).bar("close"),
                     S::on(Commits, &command::toggle_commits).bar("close"),
+                    S::on(Comments, &command::toggle_comments).bar("close"),
                 ],
             ),
             B::global(&command::switch_focus, vec![Single(KeyCode::Tab.into())]),
@@ -627,6 +652,7 @@ impl Keymap {
                     S::on(Picker, &command::picker_down),
                     S::on(Description, &command::desc_scroll_down),
                     S::on(Commits, &command::commits_down),
+                    S::on(Comments, &command::comments_down),
                 ],
             ),
             B::multi(
@@ -636,6 +662,7 @@ impl Keymap {
                     S::on(Picker, &command::picker_up),
                     S::on(Description, &command::desc_scroll_up),
                     S::on(Commits, &command::commits_up),
+                    S::on(Comments, &command::comments_up),
                 ],
             ),
             B::multi(
@@ -644,6 +671,7 @@ impl Keymap {
                     S::on(Diff, &command::half_page_down),
                     S::on(Description, &command::desc_page_down),
                     S::on(Commits, &command::commits_half_page_down),
+                    S::on(Comments, &command::comments_half_page_down),
                 ],
             ),
             B::multi(
@@ -652,6 +680,7 @@ impl Keymap {
                     S::on(Diff, &command::half_page_up),
                     S::on(Description, &command::desc_page_up),
                     S::on(Commits, &command::commits_half_page_up),
+                    S::on(Comments, &command::comments_half_page_up),
                 ],
             ),
             B::multi(
@@ -660,6 +689,7 @@ impl Keymap {
                     S::on(Diff, &command::full_page_down),
                     S::on(Description, &command::desc_page_down),
                     S::on(Commits, &command::commits_page_down),
+                    S::on(Comments, &command::comments_page_down),
                 ],
             ),
             B::multi(
@@ -671,6 +701,7 @@ impl Keymap {
                     S::on(Diff, &command::full_page_up),
                     S::on(Description, &command::desc_page_up),
                     S::on(Commits, &command::commits_page_up),
+                    S::on(Comments, &command::comments_page_up),
                 ],
             ),
             B::multi(
@@ -877,6 +908,41 @@ impl Keymap {
             ),
         ]);
 
+        // ── Comments panel ────────────────────────────────────────────
+        // Also after the global `o`, so the panel's `o` (open the thread)
+        // replaces it there.
+        defs.push(B::global(
+            &command::toggle_comments,
+            vec![Single('i'.into())],
+        ));
+        defs.extend([
+            B::multi(
+                vec![Single(KeyCode::Enter.into())],
+                vec![S::on(Comments, &command::comment_jump).bar("jump")],
+            ),
+            B::multi(
+                vec![Single('r'.into())],
+                vec![S::on(Comments, &command::comment_reply).bar("reply")],
+            ),
+            B::multi(
+                vec![Single('R'.into())],
+                vec![S::on(Comments, &command::comment_resolve).bar("resolve")],
+            ),
+            B::multi(
+                vec![Single('f'.into())],
+                vec![S::on(Comments, &command::comments_filter).bar("filter")],
+            ),
+            B::comments(&command::comment_edit, vec![Single('e'.into())]),
+            B::comments(&command::comment_discard, vec![Single('x'.into())]),
+            B::comments(&command::comment_open, vec![Single('o'.into())]),
+            B::comments(&command::comment_copy, vec![Single('y'.into())]),
+            B::comments(&command::comments_first, vec![Single(KeyCode::Home.into())]),
+            B::comments(
+                &command::comments_last,
+                vec![Single(KeyCode::End.into()), Single('G'.into())],
+            ),
+        ]);
+
         // ── Description panel keys ────────────────────────────────────
         defs.push(B::multi(
             vec![Single('d'.into())],
@@ -885,6 +951,7 @@ impl Keymap {
                 S::on(Picker, &command::description).bar("description"),
                 S::on(Description, &command::description),
                 S::on(Commits, &command::description),
+                S::on(Comments, &command::description),
             ],
         ));
         defs.push(B::multi(
@@ -903,6 +970,7 @@ impl Keymap {
                     S::on(Diff, &command::goto_first),
                     S::on(Description, &command::desc_goto_first),
                     S::on(Commits, &command::commits_first),
+                    S::on(Comments, &command::comments_first),
                 ],
             ),
             B::diff(
@@ -1028,6 +1096,7 @@ impl Keymap {
         let mut file_picker: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut description: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut commits: HashMap<KeyCombo, &'static Command> = HashMap::new();
+        let mut comments: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut pending: PendingMap = HashMap::new();
         let mut labels: HashMap<&'static str, Vec<String>> = HashMap::new();
         let mut bar_entries: Vec<BarEntry> = Vec::new();
@@ -1077,6 +1146,9 @@ impl Keymap {
                             Panel::Commits => {
                                 commits.insert(combo.clone(), sb.command);
                             }
+                            Panel::Comments => {
+                                comments.insert(combo.clone(), sb.command);
+                            }
                         },
                         KeyBinding::Pending { prefix, key } => {
                             pending
@@ -1096,6 +1168,7 @@ impl Keymap {
             file_picker,
             description,
             commits,
+            comments,
             pending,
             labels,
             bar_entries,

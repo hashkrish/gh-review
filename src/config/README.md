@@ -153,6 +153,7 @@ Only include the ones you want to change.
 | `toggle_viewed`                | `m`        | Mark file viewed / unviewed       |
 | `sync_viewed`                  | —          | Sync viewed files with GitHub     |
 | `toggle_commits`               | `p`        | Toggle commits panel (see [Commits Panel](#commits-panel)) |
+| `toggle_comments`              | `i`        | Toggle comments panel (see [Comments Panel](#comments-panel)) |
 | `expand_all_comments`          | —          | Expand all comment threads        |
 | `collapse_all_comments`        | —          | Collapse all comment threads      |
 
@@ -197,6 +198,31 @@ panel-specific commands. For example, `j` calls `scroll_down` in the diff,
 
 `commit_*` and `commits_*` apply only while the commits panel has focus, so
 their keys (`s`, `y`, `o`, `Enter`) keep their usual meaning elsewhere.
+
+### Comments Panel
+
+| Action                | Default           | Description                                  |
+|-----------------------|-------------------|----------------------------------------------|
+| `toggle_comments`     | `i`               | Toggle the comments panel (also `q`/`Esc` inside it) |
+| `comments_down`       | `j`, `Down`       | Next entry                                   |
+| `comments_up`         | `k`, `Up`         | Previous entry                               |
+| `comments_first`      | `gg`, `Home`      | First entry                                  |
+| `comments_last`       | `G`, `End`        | Last entry                                   |
+| `comments_half_page_down` | `Ctrl-d`      | Half page down                               |
+| `comments_half_page_up`   | `Ctrl-u`      | Half page up                                 |
+| `comments_page_down`  | `Ctrl-f`, `Space` | Full page down                               |
+| `comments_page_up`    | `Ctrl-b`, `Shift-Space` | Full page up                           |
+| `comments_filter`     | `f`               | Cycle the filter (all / unresolved / resolved / drafts) |
+| `comment_jump`        | `Enter`           | Jump to the comment in the diff              |
+| `comment_reply`       | `r`               | Reply to the thread (threads only)           |
+| `comment_resolve`     | `R`               | Resolve / unresolve the thread (threads only) |
+| `comment_edit`        | `e`               | Edit the draft (drafts only)                 |
+| `comment_discard`     | `x`               | Discard the draft (drafts only)              |
+| `comment_open`        | `o`               | Open the thread on GitHub (threads only)     |
+| `comment_copy`        | `y`               | Copy the comment text                        |
+
+These apply only while the comments panel has focus, so their keys keep
+their usual meaning elsewhere.
 
 ### Stack Navigation
 

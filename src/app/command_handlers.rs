@@ -473,6 +473,74 @@ pub fn commit_copy_sha(app: &mut App) {
     app.copy_selected_sha();
 }
 
+pub fn toggle_comments(app: &mut App) {
+    app.toggle_comments_panel();
+}
+
+pub fn comments_down(app: &mut App) {
+    app.comments_panel.next();
+}
+
+pub fn comments_up(app: &mut App) {
+    app.comments_panel.prev();
+}
+
+pub fn comments_first(app: &mut App) {
+    app.comments_panel.goto_first();
+}
+
+pub fn comments_last(app: &mut App) {
+    app.comments_panel.goto_last();
+}
+
+pub fn comments_half_page_down(app: &mut App) {
+    app.comments_panel.page_down(true);
+}
+
+pub fn comments_half_page_up(app: &mut App) {
+    app.comments_panel.page_up(true);
+}
+
+pub fn comments_page_down(app: &mut App) {
+    app.comments_panel.page_down(false);
+}
+
+pub fn comments_page_up(app: &mut App) {
+    app.comments_panel.page_up(false);
+}
+
+pub fn comments_filter(app: &mut App) {
+    app.comments_panel.cycle_filter();
+}
+
+pub fn comment_jump(app: &mut App) {
+    app.jump_to_selected_comment();
+}
+
+pub fn comment_reply(app: &mut App) {
+    app.reply_to_selected_comment();
+}
+
+pub fn comment_resolve(app: &mut App) {
+    app.resolve_selected_comment();
+}
+
+pub fn comment_edit(app: &mut App) {
+    app.edit_selected_draft();
+}
+
+pub fn comment_discard(app: &mut App) {
+    app.discard_selected_draft();
+}
+
+pub fn comment_open(app: &mut App) {
+    app.open_selected_comment();
+}
+
+pub fn comment_copy(app: &mut App) {
+    app.copy_selected_comment();
+}
+
 pub fn sync_viewed(app: &mut App) {
     app.status.info("Syncing viewed files...");
     app.request_viewed_pull(app.pr_number);
@@ -541,6 +609,7 @@ pub fn description(app: &mut App) {
     } else {
         // The right-hand drawer holds one panel at a time.
         app.commits_panel.visible = false;
+        app.comments_panel.visible = false;
         app.description_panel.visible = true;
         app.focus = super::Focus::Description;
     }

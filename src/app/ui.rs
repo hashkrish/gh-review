@@ -109,6 +109,11 @@ impl App {
                     now,
                 );
             }
+            Some(Focus::Comments) => self.comments_panel.draw(
+                content_layout[diff_idx + 1],
+                frame.buffer_mut(),
+                self.focus == Focus::Comments,
+            ),
             _ => {}
         }
 

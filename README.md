@@ -102,6 +102,7 @@ gh-dash (browse PRs)
 | `Esc` | Close description panel (when focused) |
 | `b` | Toggle file list panel |
 | `p` | Toggle commits panel |
+| `i` | Toggle comments panel |
 
 Panels: **File List** ↔ **Diff** ↔ **Description** (when open). The file list can be hidden with `b`, which gives the diff the full width.
 
@@ -160,6 +161,27 @@ Comments are batched into a pending review and submitted together when you press
 | `p` / `q` / `Esc` | Close the panel |
 
 A commit or since view is **read-only**: it is marked in the title bar, review comments are hidden (they anchor to the full diff's lines), and commenting, suggesting, expanding context and the viewed mark are disabled until you return to **All changes**. Your drafts and viewed marks are kept. GitHub lists at most 300 files per commit view.
+
+#### Comments panel
+
+`i` opens a right-hand drawer listing every review thread in the PR plus your pending drafts, in diff order, so comments can be found and handled without scrolling the diff. It shares the drawer with the description and commits panels (opening one closes the others).
+
+Each entry shows its status (`○` open, `✓` resolved, `✎` your draft), `file:line`, the author, a reply count and a preview of the root comment.
+
+| Key (in the panel) | Action | Applies to |
+|-----|--------|------------|
+| `j` / `k`, `gg` / `G`, `Ctrl+D` / `Ctrl+U`, `Ctrl+F` / `Ctrl+B`, `Space` | Move through the list | all |
+| `Enter` | Jump to the comment in the diff (unfolds its file; leaves a commit view) | all |
+| `r` | Reply to the thread | threads |
+| `R` | Resolve / unresolve the thread | threads |
+| `e` | Edit the draft | drafts |
+| `x` | Discard the draft | drafts |
+| `o` | Open the thread on GitHub | threads |
+| `y` | Copy the comment text | all |
+| `f` | Cycle the filter: all → unresolved → resolved → drafts | — |
+| `i` / `q` / `Esc` | Close the panel | — |
+
+The list updates as comments change, so resolving a thread, posting a reply or discarding a draft shows up straight away. A comment that isn't in the current diff (outdated, or outside the shown hunks) is listed but can't be jumped to.
 
 #### Viewed files
 
