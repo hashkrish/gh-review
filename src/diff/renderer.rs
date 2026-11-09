@@ -170,14 +170,16 @@ fn render_collapsed_header(
 
 // ── Selection overlay ──────────────────────────────────────────────────
 
+/// Highlight the cursor row. This only restyles the existing spans: adding a
+/// marker character would push the selected row's text one column to the
+/// right of every other row.
 fn apply_selection(line: Line<'static>) -> Line<'static> {
-    let mut spans = vec![Span::styled("▌", Theme::selected_cursor())];
-    spans.extend(
+    Line::from(
         line.spans
             .into_iter()
-            .map(|s| Span::styled(s.content, s.style.patch(Theme::selected_line()))),
-    );
-    Line::from(spans)
+            .map(|s| Span::styled(s.content, s.style.patch(Theme::selected_line())))
+            .collect::<Vec<_>>(),
+    )
 }
 
 // ── Unified diff line ──────────────────────────────────────────────────
@@ -327,3 +329,6 @@ fn truncate_spans(spans: &[Span<'static>], max_chars: usize) -> Vec<Span<'static
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
