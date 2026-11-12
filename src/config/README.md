@@ -83,8 +83,8 @@ Only include the ones you want to change.
 | `scroll_up`           | `k`, `Up`         | Scroll up one line                |
 | `half_page_down`      | `Ctrl-d`          | Scroll down half page             |
 | `half_page_up`        | `Ctrl-u`          | Scroll up half page               |
-| `full_page_down`      | `Ctrl-f`          | Scroll down full page             |
-| `full_page_up`        | `Ctrl-b`          | Scroll up full page               |
+| `full_page_down`      | `Ctrl-f`, `Space` | Scroll down full page             |
+| `full_page_up`        | `Ctrl-b`, `Shift-Space` | Scroll up full page         |
 | `goto_first`          | `gg`              | Go to first line                  |
 | `goto_last`           | `G`               | Go to last line                   |
 | `screen_top`          | `H`               | Cursor to screen top              |
@@ -119,6 +119,7 @@ Only include the ones you want to change.
 | `switch_focus`        | `Tab`             | Cycle panel focus                 |
 | `next_panel`          | `l`, `Right`      | Focus next panel                  |
 | `prev_panel`          | `h`, `Left`       | Focus previous panel              |
+| `focus_diff`          | `Enter` (file list) | Move focus to the diff panel    |
 | `toggle_view`         | `t`               | Toggle unified / side-by-side     |
 | `toggle_file_panel`   | `b`               | Toggle file list panel            |
 | `toggle_comment`      | `Enter`           | Toggle comment expand             |
@@ -148,6 +149,11 @@ Only include the ones you want to change.
 | `resolve`                      | `r`        | Resolve / unresolve thread        |
 | `discard`                      | `x`        | Discard pending comment           |
 | `accept_suggestion`            | `y`        | Accept suggestion                 |
+| `sync_drafts`                  | —          | Sync drafts with GitHub pending review |
+| `toggle_viewed`                | `m`        | Mark file viewed / unviewed       |
+| `sync_viewed`                  | —          | Sync viewed files with GitHub     |
+| `toggle_commits`               | `p`        | Toggle commits panel (see [Commits Panel](#commits-panel)) |
+| `toggle_comments`              | `i`        | Toggle comments panel (see [Comments Panel](#comments-panel)) |
 | `expand_all_comments`          | —          | Expand all comment threads        |
 | `collapse_all_comments`        | —          | Collapse all comment threads      |
 
@@ -169,7 +175,54 @@ Only include the ones you want to change.
 
 Navigation keys like `j`/`k`/`gg`/`G` work in all panels but dispatch to
 panel-specific commands. For example, `j` calls `scroll_down` in the diff,
-`picker_down` in the file list, and `desc_scroll_down` in the description.
+`picker_down` in the file list, `desc_scroll_down` in the description, and
+`commits_down` in the commits panel.
+
+### Commits Panel
+
+| Action                | Default           | Description                                  |
+|-----------------------|-------------------|----------------------------------------------|
+| `toggle_commits`      | `p`               | Toggle the commits panel (also `q`/`Esc` inside it) |
+| `commits_down`        | `j`, `Down`       | Next row                                     |
+| `commits_up`          | `k`, `Up`         | Previous row                                 |
+| `commits_half_page_down` | `Ctrl-d`       | Half page down                               |
+| `commits_half_page_up`   | `Ctrl-u`       | Half page up                                 |
+| `commits_page_down`   | `Ctrl-f`, `Space` | Full page down                               |
+| `commits_page_up`     | `Ctrl-b`, `Shift-Space` | Full page up                           |
+| `commits_first`       | `gg`, `Home`      | First row ("All changes")                    |
+| `commits_last`        | `End`, `G`        | Last commit                                  |
+| `commit_view`         | `Enter`           | View the selected commit's diff; on "All changes", return to the full PR diff |
+| `commit_since`        | `s`               | View everything after the selected commit, up to the PR head |
+| `commit_copy_sha`     | `y`               | Copy the commit's full SHA                   |
+| `commit_open`         | `o`               | Open the commit on GitHub                    |
+
+`commit_*` and `commits_*` apply only while the commits panel has focus, so
+their keys (`s`, `y`, `o`, `Enter`) keep their usual meaning elsewhere.
+
+### Comments Panel
+
+| Action                | Default           | Description                                  |
+|-----------------------|-------------------|----------------------------------------------|
+| `toggle_comments`     | `i`               | Toggle the comments panel (also `q`/`Esc` inside it) |
+| `comments_down`       | `j`, `Down`       | Next entry                                   |
+| `comments_up`         | `k`, `Up`         | Previous entry                               |
+| `comments_first`      | `gg`, `Home`      | First entry                                  |
+| `comments_last`       | `G`, `End`        | Last entry                                   |
+| `comments_half_page_down` | `Ctrl-d`      | Half page down                               |
+| `comments_half_page_up`   | `Ctrl-u`      | Half page up                                 |
+| `comments_page_down`  | `Ctrl-f`, `Space` | Full page down                               |
+| `comments_page_up`    | `Ctrl-b`, `Shift-Space` | Full page up                           |
+| `comments_filter`     | `f`               | Cycle the filter (all / unresolved / resolved / drafts) |
+| `comment_jump`        | `Enter`           | Jump to the comment in the diff              |
+| `comment_reply`       | `r`               | Reply to the thread (threads only)           |
+| `comment_resolve`     | `R`               | Resolve / unresolve the thread (threads only) |
+| `comment_edit`        | `e`               | Edit the draft (drafts only)                 |
+| `comment_discard`     | `x`               | Discard the draft (drafts only)              |
+| `comment_open`        | `o`               | Open the thread on GitHub (threads only)     |
+| `comment_copy`        | `y`               | Copy the comment text                        |
+
+These apply only while the comments panel has focus, so their keys keep
+their usual meaning elsewhere.
 
 ### Stack Navigation
 

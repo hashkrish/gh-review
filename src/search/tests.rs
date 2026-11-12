@@ -22,6 +22,7 @@ fn file_header(path: &str) -> DisplayRow {
         path: path.to_string(),
         file_idx: 0,
         collapsed: false,
+        viewed: false,
     }
 }
 

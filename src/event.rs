@@ -1,4 +1,4 @@
-use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -42,6 +42,18 @@ pub enum AppEvent {
     ReviewDismissed,
     SuggestionAccepted,
     ReviewSubmitted,
+    ReplyPosted,
+    CommitsLoaded {
+        pr: u64,
+        data: Result<Vec<crate::types::Commit>, String>,
+    },
+    /// Files for a commit or "since" view, ready to replace the full diff.
+    AltDiffLoaded {
+        pr: u64,
+        source: crate::types::DiffSource,
+        files: Vec<crate::types::DiffFile>,
+    },
+    Sync(crate::sync::SyncEvent),
     StackPrefetchLoaded(std::collections::HashMap<u64, crate::stack::PrSnapshot>),
     CustomActionComplete {
         description: String,
@@ -77,7 +89,13 @@ impl EventHandler {
                         continue;
                     }
                     match event::read() {
-                        Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
+                        // With full key reporting, bare modifier presses (Shift,
+                        // Ctrl, ...) arrive as events of their own. Drop them:
+                        // they'd cancel pending key prefixes like `g` in `gC`.
+                        Ok(Event::Key(key))
+                            if key.kind == KeyEventKind::Press
+                                && !matches!(key.code, KeyCode::Modifier(_)) =>
+                        {
                             if term_tx.send(AppEvent::Key(key)).is_err() {
                                 break;
                             }

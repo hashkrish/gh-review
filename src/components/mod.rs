@@ -1,5 +1,7 @@
 pub mod command_bar;
 pub mod comment_input;
+pub mod comments_panel;
+pub mod commits_panel;
 pub mod description_panel;
 pub mod diff_view;
 pub mod file_picker;
@@ -8,3 +10,4 @@ pub mod review_bar;
 pub mod review_confirm;
 pub mod search_bar;
 pub mod status_line;
+pub mod sync_conflict;

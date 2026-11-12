@@ -47,6 +47,13 @@ impl KeyCombo {
         }
     }
 
+    pub fn shift_space() -> Self {
+        Self {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::SHIFT,
+        }
+    }
+
     pub fn super_key(code: KeyCode) -> Self {
         Self {
             code,
@@ -58,7 +65,12 @@ impl KeyCombo {
 impl From<&KeyEvent> for KeyCombo {
     fn from(event: &KeyEvent) -> Self {
         let mut modifiers = event.modifiers;
-        if let KeyCode::Char(_) = event.code {
+        // Shift is already folded into the character for most keys ('A',
+        // '?'), so it's dropped. Space has no shifted form, so Shift is the
+        // only thing telling `Shift+Space` from `Space`.
+        if let KeyCode::Char(c) = event.code
+            && c != ' '
+        {
             modifiers.remove(KeyModifiers::SHIFT);
         }
         Self {
@@ -81,9 +93,17 @@ enum Panel {
     Diff,
     Picker,
     Description,
+    Commits,
+    Comments,
 }
 
-const ALL_PANELS: &[Panel] = &[Panel::Diff, Panel::Picker, Panel::Description];
+const ALL_PANELS: &[Panel] = &[
+    Panel::Diff,
+    Panel::Picker,
+    Panel::Description,
+    Panel::Commits,
+    Panel::Comments,
+];
 
 /// Controls when a bar hint is visible and what label it displays.
 #[derive(Clone, Copy, Default)]
@@ -181,6 +201,22 @@ impl BindingDef {
         }
     }
 
+    fn comments(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Comments, cmd)],
+            context: None,
+        }
+    }
+
+    fn commits(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Commits, cmd)],
+            context: None,
+        }
+    }
+
     fn picker(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
         Self {
             keys,
@@ -227,6 +263,8 @@ pub struct Keymap {
     diff_view: HashMap<KeyCombo, Vec<Binding>>,
     file_picker: HashMap<KeyCombo, &'static Command>,
     description: HashMap<KeyCombo, &'static Command>,
+    commits: HashMap<KeyCombo, &'static Command>,
+    comments: HashMap<KeyCombo, &'static Command>,
     pending: PendingMap,
     labels: HashMap<&'static str, Vec<String>>,
     bar_entries: Vec<BarEntry>,
@@ -257,7 +295,10 @@ impl Keymap {
     pub fn lookup(&self, key: &KeyEvent, focus: Focus, context: RowContext) -> LookupResult {
         let combo = KeyCombo::from(key);
 
-        if matches!(focus, Focus::DiffView | Focus::Description)
+        if matches!(
+            focus,
+            Focus::DiffView | Focus::Description | Focus::Commits | Focus::Comments
+        )
             && let KeyCode::Char(c) = combo.code
             && combo.modifiers == KeyModifiers::NONE
             && self.pending.contains_key(&c)
@@ -292,6 +333,18 @@ impl Keymap {
                 .copied()
                 .map(LookupResult::Command)
                 .unwrap_or(LookupResult::None),
+            Focus::Commits => self
+                .commits
+                .get(&combo)
+                .copied()
+                .map(LookupResult::Command)
+                .unwrap_or(LookupResult::None),
+            Focus::Comments => self
+                .comments
+                .get(&combo)
+                .copied()
+                .map(LookupResult::Command)
+                .unwrap_or(LookupResult::None),
         }
     }
 
@@ -305,6 +358,8 @@ impl Keymap {
             Focus::DiffView => Panel::Diff,
             Focus::FilePicker => Panel::Picker,
             Focus::Description => Panel::Description,
+            Focus::Commits => Panel::Commits,
+            Focus::Comments => Panel::Comments,
         };
         self.pending
             .get(&prefix)
@@ -341,6 +396,8 @@ impl Keymap {
             Focus::DiffView => Panel::Diff,
             Focus::FilePicker => Panel::Picker,
             Focus::Description => Panel::Description,
+            Focus::Commits => Panel::Commits,
+            Focus::Comments => Panel::Comments,
         };
         let cs = context.comment_state();
 
@@ -470,6 +527,9 @@ impl Keymap {
             // General
             (one("description"), "Toggle description panel"),
             (one("toggle_file_panel"), "Toggle file list panel"),
+            (one("toggle_viewed"), "Mark file viewed / unviewed"),
+            (one("toggle_commits"), "Toggle commits panel"),
+            (one("toggle_comments"), "Toggle comments panel"),
             (one("toggle_view"), "Toggle unified / side-by-side"),
             (one("open_browser"), "Open in browser"),
             (one("quit"), "Quit"),
@@ -530,7 +590,7 @@ impl Keymap {
     fn default_binding_defs() -> Vec<BindingDef> {
         use BindingDef as B;
         use KeyBinding::{Pending, Single};
-        use Panel::{Description, Diff, Picker};
+        use Panel::{Comments, Commits, Description, Diff, Picker};
         use ScopeBinding as S;
 
         let key_down = vec![Single('j'.into()), Single(KeyCode::Down.into())];
@@ -546,6 +606,8 @@ impl Keymap {
                     S::on(Diff, &command::quit),
                     S::on(Picker, &command::quit),
                     S::on(Description, &command::description),
+                    S::on(Commits, &command::toggle_commits),
+                    S::on(Comments, &command::toggle_comments),
                 ],
             ),
             B::multi(
@@ -554,6 +616,8 @@ impl Keymap {
                     S::on(Diff, &command::escape),
                     S::on(Picker, &command::escape),
                     S::on(Description, &command::desc_close).bar("close"),
+                    S::on(Commits, &command::toggle_commits).bar("close"),
+                    S::on(Comments, &command::toggle_comments).bar("close"),
                 ],
             ),
             B::global(&command::switch_focus, vec![Single(KeyCode::Tab.into())]),
@@ -587,6 +651,8 @@ impl Keymap {
                     S::on(Diff, &command::scroll_down),
                     S::on(Picker, &command::picker_down),
                     S::on(Description, &command::desc_scroll_down),
+                    S::on(Commits, &command::commits_down),
+                    S::on(Comments, &command::comments_down),
                 ],
             ),
             B::multi(
@@ -595,6 +661,8 @@ impl Keymap {
                     S::on(Diff, &command::scroll_up),
                     S::on(Picker, &command::picker_up),
                     S::on(Description, &command::desc_scroll_up),
+                    S::on(Commits, &command::commits_up),
+                    S::on(Comments, &command::comments_up),
                 ],
             ),
             B::multi(
@@ -602,6 +670,8 @@ impl Keymap {
                 vec![
                     S::on(Diff, &command::half_page_down),
                     S::on(Description, &command::desc_page_down),
+                    S::on(Commits, &command::commits_half_page_down),
+                    S::on(Comments, &command::comments_half_page_down),
                 ],
             ),
             B::multi(
@@ -609,20 +679,29 @@ impl Keymap {
                 vec![
                     S::on(Diff, &command::half_page_up),
                     S::on(Description, &command::desc_page_up),
+                    S::on(Commits, &command::commits_half_page_up),
+                    S::on(Comments, &command::comments_half_page_up),
                 ],
             ),
             B::multi(
-                vec![Single(KeyCombo::ctrl('f'))],
+                vec![Single(KeyCombo::ctrl('f')), Single(' '.into())],
                 vec![
                     S::on(Diff, &command::full_page_down),
                     S::on(Description, &command::desc_page_down),
+                    S::on(Commits, &command::commits_page_down),
+                    S::on(Comments, &command::comments_page_down),
                 ],
             ),
             B::multi(
-                vec![Single(KeyCombo::ctrl('b'))],
+                vec![
+                    Single(KeyCombo::ctrl('b')),
+                    Single(KeyCombo::shift_space()),
+                ],
                 vec![
                     S::on(Diff, &command::full_page_up),
                     S::on(Description, &command::desc_page_up),
+                    S::on(Commits, &command::commits_page_up),
+                    S::on(Comments, &command::comments_page_up),
                 ],
             ),
             B::multi(
@@ -644,6 +723,7 @@ impl Keymap {
             B::diff(&command::next_match_or_file, vec![Single('n'.into())]),
             B::diff(&command::prev_match_or_file, vec![Single('N'.into())]),
             B::picker(&command::file_filter, vec![Single('/'.into())]),
+            B::picker(&command::focus_diff, vec![Single(KeyCode::Enter.into())]),
         ]);
 
         // ── Jumps (diff + description) ────────────────────────────────
@@ -791,6 +871,78 @@ impl Keymap {
             vec![Single('b'.into())],
         ));
 
+        // ── Viewed-file checkbox ──────────────────────────────────────
+        defs.push(B::multi(
+            vec![Single('m'.into())],
+            vec![
+                S::on(Diff, &command::toggle_viewed),
+                S::on(Picker, &command::toggle_viewed),
+            ],
+        ));
+
+        // ── Commits panel ─────────────────────────────────────────────
+        // Defined after the global `o` so the commits panel's `o` (open the
+        // commit) replaces it there.
+        defs.push(B::global(&command::toggle_commits, vec![Single('p'.into())]));
+        defs.extend([
+            B::multi(
+                vec![Single(KeyCode::Enter.into())],
+                vec![S::on(Commits, &command::commit_view).bar("view")],
+            ),
+            B::multi(
+                vec![Single('s'.into())],
+                vec![S::on(Commits, &command::commit_since).bar("since")],
+            ),
+            B::multi(
+                vec![Single('y'.into())],
+                vec![S::on(Commits, &command::commit_copy_sha).bar("copy sha")],
+            ),
+            B::multi(
+                vec![Single('o'.into())],
+                vec![S::on(Commits, &command::commit_open).bar("open")],
+            ),
+            B::commits(&command::commits_first, vec![Single(KeyCode::Home.into())]),
+            B::commits(
+                &command::commits_last,
+                vec![Single(KeyCode::End.into()), Single('G'.into())],
+            ),
+        ]);
+
+        // ── Comments panel ────────────────────────────────────────────
+        // Also after the global `o`, so the panel's `o` (open the thread)
+        // replaces it there.
+        defs.push(B::global(
+            &command::toggle_comments,
+            vec![Single('i'.into())],
+        ));
+        defs.extend([
+            B::multi(
+                vec![Single(KeyCode::Enter.into())],
+                vec![S::on(Comments, &command::comment_jump).bar("jump")],
+            ),
+            B::multi(
+                vec![Single('r'.into())],
+                vec![S::on(Comments, &command::comment_reply).bar("reply")],
+            ),
+            B::multi(
+                vec![Single('R'.into())],
+                vec![S::on(Comments, &command::comment_resolve).bar("resolve")],
+            ),
+            B::multi(
+                vec![Single('f'.into())],
+                vec![S::on(Comments, &command::comments_filter).bar("filter")],
+            ),
+            B::comments(&command::comment_edit, vec![Single('e'.into())]),
+            B::comments(&command::comment_discard, vec![Single('x'.into())]),
+            B::comments(&command::comment_open, vec![Single('o'.into())]),
+            B::comments(&command::comment_copy, vec![Single('y'.into())]),
+            B::comments(&command::comments_first, vec![Single(KeyCode::Home.into())]),
+            B::comments(
+                &command::comments_last,
+                vec![Single(KeyCode::End.into()), Single('G'.into())],
+            ),
+        ]);
+
         // ── Description panel keys ────────────────────────────────────
         defs.push(B::multi(
             vec![Single('d'.into())],
@@ -798,6 +950,8 @@ impl Keymap {
                 S::on(Diff, &command::description).bar("description"),
                 S::on(Picker, &command::description).bar("description"),
                 S::on(Description, &command::description),
+                S::on(Commits, &command::description),
+                S::on(Comments, &command::description),
             ],
         ));
         defs.push(B::multi(
@@ -815,6 +969,8 @@ impl Keymap {
                 vec![
                     S::on(Diff, &command::goto_first),
                     S::on(Description, &command::desc_goto_first),
+                    S::on(Commits, &command::commits_first),
+                    S::on(Comments, &command::comments_first),
                 ],
             ),
             B::diff(
@@ -939,6 +1095,8 @@ impl Keymap {
         let mut diff_view: HashMap<KeyCombo, Vec<Binding>> = HashMap::new();
         let mut file_picker: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut description: HashMap<KeyCombo, &'static Command> = HashMap::new();
+        let mut commits: HashMap<KeyCombo, &'static Command> = HashMap::new();
+        let mut comments: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut pending: PendingMap = HashMap::new();
         let mut labels: HashMap<&'static str, Vec<String>> = HashMap::new();
         let mut bar_entries: Vec<BarEntry> = Vec::new();
@@ -985,6 +1143,12 @@ impl Keymap {
                             Panel::Description => {
                                 description.insert(combo.clone(), sb.command);
                             }
+                            Panel::Commits => {
+                                commits.insert(combo.clone(), sb.command);
+                            }
+                            Panel::Comments => {
+                                comments.insert(combo.clone(), sb.command);
+                            }
                         },
                         KeyBinding::Pending { prefix, key } => {
                             pending
@@ -1003,6 +1167,8 @@ impl Keymap {
             diff_view,
             file_picker,
             description,
+            commits,
+            comments,
             pending,
             labels,
             bar_entries,

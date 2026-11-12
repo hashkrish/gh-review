@@ -183,15 +183,19 @@ pub fn switch_focus(app: &mut App) {
 }
 
 pub fn next_panel(app: &mut App) {
-    let desc_open = app.description_panel.visible;
+    let right = app.right_drawer();
     let files_open = app.file_panel_visible;
-    app.focus = app.focus.next(desc_open, files_open);
+    app.focus = app.focus.next(right, files_open);
 }
 
 pub fn prev_panel(app: &mut App) {
-    let desc_open = app.description_panel.visible;
+    let right = app.right_drawer();
     let files_open = app.file_panel_visible;
-    app.focus = app.focus.prev(desc_open, files_open);
+    app.focus = app.focus.prev(right, files_open);
+}
+
+pub fn focus_diff(app: &mut App) {
+    app.focus = super::Focus::DiffView;
 }
 
 pub fn toggle_file_panel(app: &mut App) {
@@ -296,6 +300,9 @@ pub fn comment(app: &mut App) {
 }
 
 pub fn suggest(app: &mut App) {
+    if app.read_only_guard() {
+        return;
+    }
     let use_external = crate::editor::has_external_editor();
 
     if app.diff_view.is_visual_mode() {
@@ -354,6 +361,9 @@ pub fn suggest(app: &mut App) {
 }
 
 pub fn expand(app: &mut App) {
+    if app.read_only_guard() {
+        return;
+    }
     app.request_expand();
 }
 
@@ -394,9 +404,146 @@ pub fn discard(app: &mut App) {
     if let Some(pt) = app.diff_view.pending_comment_at_cursor()
         && pt.pending_idx < app.pending_comments.len()
     {
-        app.pending_comments.remove(pt.pending_idx);
+        app.remove_draft(pt.pending_idx);
         app.rebuild_display();
     }
+}
+
+pub fn sync_drafts(app: &mut App) {
+    app.status.info("Syncing pending review...");
+    app.request_pull(app.pr_number);
+}
+
+pub fn toggle_viewed(app: &mut App) {
+    if app.read_only_guard() {
+        return;
+    }
+    app.toggle_file_viewed();
+}
+
+pub fn toggle_commits(app: &mut App) {
+    app.toggle_commits_panel();
+}
+
+pub fn commits_down(app: &mut App) {
+    app.commits_panel.next();
+}
+
+pub fn commits_up(app: &mut App) {
+    app.commits_panel.prev();
+}
+
+pub fn commits_half_page_down(app: &mut App) {
+    app.commits_panel.page_down(true);
+}
+
+pub fn commits_half_page_up(app: &mut App) {
+    app.commits_panel.page_up(true);
+}
+
+pub fn commits_page_down(app: &mut App) {
+    app.commits_panel.page_down(false);
+}
+
+pub fn commits_page_up(app: &mut App) {
+    app.commits_panel.page_up(false);
+}
+
+pub fn commits_first(app: &mut App) {
+    app.commits_panel.goto_first();
+}
+
+pub fn commits_last(app: &mut App) {
+    app.commits_panel.goto_last();
+}
+
+pub fn commit_view(app: &mut App) {
+    app.view_selected_commit();
+}
+
+pub fn commit_since(app: &mut App) {
+    app.view_since_selected();
+}
+
+pub fn commit_open(app: &mut App) {
+    app.open_selected_commit();
+}
+
+pub fn commit_copy_sha(app: &mut App) {
+    app.copy_selected_sha();
+}
+
+pub fn toggle_comments(app: &mut App) {
+    app.toggle_comments_panel();
+}
+
+pub fn comments_down(app: &mut App) {
+    app.comments_panel.next();
+}
+
+pub fn comments_up(app: &mut App) {
+    app.comments_panel.prev();
+}
+
+pub fn comments_first(app: &mut App) {
+    app.comments_panel.goto_first();
+}
+
+pub fn comments_last(app: &mut App) {
+    app.comments_panel.goto_last();
+}
+
+pub fn comments_half_page_down(app: &mut App) {
+    app.comments_panel.page_down(true);
+}
+
+pub fn comments_half_page_up(app: &mut App) {
+    app.comments_panel.page_up(true);
+}
+
+pub fn comments_page_down(app: &mut App) {
+    app.comments_panel.page_down(false);
+}
+
+pub fn comments_page_up(app: &mut App) {
+    app.comments_panel.page_up(false);
+}
+
+pub fn comments_filter(app: &mut App) {
+    app.comments_panel.cycle_filter();
+}
+
+pub fn comment_jump(app: &mut App) {
+    app.jump_to_selected_comment();
+}
+
+pub fn comment_reply(app: &mut App) {
+    app.reply_to_selected_comment();
+}
+
+pub fn comment_resolve(app: &mut App) {
+    app.resolve_selected_comment();
+}
+
+pub fn comment_edit(app: &mut App) {
+    app.edit_selected_draft();
+}
+
+pub fn comment_discard(app: &mut App) {
+    app.discard_selected_draft();
+}
+
+pub fn comment_open(app: &mut App) {
+    app.open_selected_comment();
+}
+
+pub fn comment_copy(app: &mut App) {
+    app.copy_selected_comment();
+}
+
+pub fn sync_viewed(app: &mut App) {
+    app.status.info("Syncing viewed files...");
+    app.request_viewed_pull(app.pr_number);
 }
 
 pub fn resolve(app: &mut App) {
@@ -412,6 +559,9 @@ pub fn accept_suggestion(app: &mut App) {
 }
 
 pub fn comment_on_line(app: &mut App) {
+    if app.read_only_guard() {
+        return;
+    }
     if app.diff_view.is_visual_mode() {
         app.start_visual_comment();
     } else if let Some(pt) = app.diff_view.pending_comment_at_cursor() {
@@ -435,7 +585,7 @@ pub fn comment_on_line(app: &mut App) {
 pub fn visual(app: &mut App) {
     if app.diff_view.is_visual_mode() {
         app.diff_view.cancel_visual();
-    } else {
+    } else if !app.read_only_guard() {
         app.diff_view.start_visual();
     }
 }
@@ -457,6 +607,9 @@ pub fn description(app: &mut App) {
             app.focus = super::Focus::DiffView;
         }
     } else {
+        // The right-hand drawer holds one panel at a time.
+        app.commits_panel.visible = false;
+        app.comments_panel.visible = false;
         app.description_panel.visible = true;
         app.focus = super::Focus::Description;
     }

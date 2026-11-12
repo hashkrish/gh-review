@@ -9,6 +9,11 @@ use super::App;
 
 impl App {
     pub(super) fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
+        if self.conflict_prompt_active() {
+            self.handle_conflict_key(key);
+            return;
+        }
+
         if self.review_confirm.visible {
             self.handle_review_confirm_key(key);
             return;
@@ -130,9 +135,7 @@ impl App {
                 if let Some(comment_id) = self.comment_input.reply_to_id {
                     self.submit_reply(comment_id, body);
                 } else if let Some(idx) = self.comment_input.editing_pending_idx {
-                    if let Some(pc) = self.pending_comments.get_mut(idx) {
-                        pc.body = body;
-                    }
+                    self.edit_draft(idx, body);
                     self.rebuild_display();
                 } else {
                     let final_body = if self.comment_input.is_suggestion {
@@ -140,14 +143,14 @@ impl App {
                     } else {
                         body
                     };
-                    self.pending_comments.push(ReviewComment {
-                        path: self.comment_input.file_path.clone(),
-                        line: self.comment_input.line,
-                        side: self.comment_input.side,
-                        body: final_body,
-                        start_line: self.comment_input.start_line,
-                        start_side: self.comment_input.start_side,
-                    });
+                    self.add_draft(ReviewComment::new_local(
+                        self.comment_input.file_path.clone(),
+                        self.comment_input.line,
+                        self.comment_input.side,
+                        final_body,
+                        self.comment_input.start_line,
+                        self.comment_input.start_side,
+                    ));
                     self.rebuild_display();
                 }
             }
@@ -326,26 +329,6 @@ impl App {
         self.rebuild_display();
     }
 
-    pub(crate) fn submit_review(&mut self, event: ReviewEvent, body: String) {
-        let tx = self.tx.clone();
-        let repo = self.repo.clone();
-        let pr = self.pr_number;
-        let comments = self.pending_comments.clone();
-
-        self.status.info(format!("Submitting {}...", event.label()));
-
-        tokio::spawn(async move {
-            match crate::gh::submit_review(&repo, pr, event, &body, &comments).await {
-                Ok(()) => {
-                    let _ = tx.send(AppEvent::ReviewSubmitted);
-                }
-                Err(e) => {
-                    let _ = tx.send(AppEvent::Error(format!("Submit failed: {e}")));
-                }
-            }
-        });
-    }
-
     pub(crate) fn submit_reply(&mut self, comment_id: u64, body: String) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
@@ -356,7 +339,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::reply_to_comment(&repo, pr, comment_id, &body).await {
                 Ok(()) => {
-                    let _ = tx.send(AppEvent::ReviewSubmitted);
+                    let _ = tx.send(AppEvent::ReplyPosted);
                     if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
                         let _ = tx.send(AppEvent::CommentsLoaded { pr, data: comments });
                     }

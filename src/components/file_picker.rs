@@ -5,6 +5,8 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, ListState, Widget},
 };
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::theme::Theme;
 use crate::types::{DiffFile, FileStatus};
 
@@ -22,6 +24,7 @@ pub struct FileEntry {
     pub status: FileStatus,
     pub additions: usize,
     pub deletions: usize,
+    pub viewed: bool,
 }
 
 impl FilePicker {
@@ -44,6 +47,7 @@ impl FilePicker {
                 status: f.status.clone(),
                 additions: f.additions,
                 deletions: f.deletions,
+                viewed: f.viewed,
             })
             .collect();
         if self.selected >= self.files.len() && !self.files.is_empty() {
@@ -199,7 +203,7 @@ impl FilePicker {
                     _ => Theme::status_modified(),
                 };
 
-                let short_path = shorten_path(&f.path, inner.width.saturating_sub(12) as usize);
+                let short_path = shorten_path(&f.path, inner.width.saturating_sub(14) as usize);
                 let style = if display_idx == display_selected {
                     Theme::file_list_selected()
                 } else {
@@ -208,6 +212,9 @@ impl FilePicker {
 
                 ListItem::new(Line::from(vec![
                     Span::styled(format!("{} ", f.status.symbol()), status_style),
+                    // Reserved for the viewed marker, which is drawn into it
+                    // below; the path starts after it on every row.
+                    Span::raw("  "),
                     Span::styled(short_path, style),
                     Span::styled(format!(" +{}", f.additions), Theme::status_added()),
                     Span::styled(format!(" -{}", f.deletions), Theme::status_deleted()),
@@ -227,6 +234,25 @@ impl FilePicker {
 
         let list = List::new(items);
         Widget::render(list, list_area, buf);
+
+        // The viewed marker is drawn into the two cells reserved after the
+        // status symbol rather than flowed into the text, so it can't shift
+        // the path column whatever width the terminal gives the glyph.
+        for (vi, (_, f)) in visible_files.iter().enumerate() {
+            if f.viewed && (vi as u16) < list_area.height {
+                let status_width = format!("{} ", f.status.symbol()).width() as u16;
+                let mut style = Theme::status_added();
+                if scroll + vi == display_selected {
+                    style = style.bg(Theme::file_list_selected().bg.unwrap_or_default());
+                }
+                buf.set_string(
+                    list_area.x + status_width,
+                    list_area.y + vi as u16,
+                    "✓",
+                    style,
+                );
+            }
+        }
 
         if self.filter_active {
             let filter_y = inner.y + inner.height.saturating_sub(1);
@@ -273,3 +299,6 @@ fn fuzzy_match(pattern: &str, text: &str) -> bool {
     }
     pattern_chars.peek().is_none()
 }
+
+#[cfg(test)]
+mod tests;

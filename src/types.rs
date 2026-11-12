@@ -86,6 +86,8 @@ pub struct DiffFile {
     pub additions: usize,
     pub deletions: usize,
     pub hunks: Vec<Hunk>,
+    /// GitHub's per-file "Viewed" checkbox for the current user.
+    pub viewed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -122,6 +124,51 @@ pub enum Side {
 
 #[derive(Debug, Clone)]
 pub struct ReviewComment {
+    pub path: String,
+    pub line: usize,
+    pub side: Side,
+    pub body: String,
+    pub start_line: Option<usize>,
+    pub start_side: Option<Side>,
+    /// Stable id for this draft within the session; lets async sync results
+    /// find the draft even after edits or deletions shift list indices.
+    pub local_id: u64,
+    /// GraphQL node id of the matching comment on GitHub's pending review,
+    /// once the draft has been pushed (or imported).
+    pub node_id: Option<String>,
+    /// Body as last seen identical on both sides. Comparing it with the local
+    /// and remote bodies tells us which side has changed since the last sync.
+    pub synced_body: Option<String>,
+}
+
+impl ReviewComment {
+    /// A new, not-yet-synced draft. `App::add_draft` assigns `local_id`.
+    pub fn new_local(
+        path: String,
+        line: usize,
+        side: Side,
+        body: String,
+        start_line: Option<usize>,
+        start_side: Option<Side>,
+    ) -> Self {
+        Self {
+            path,
+            line,
+            side,
+            body,
+            start_line,
+            start_side,
+            local_id: 0,
+            node_id: None,
+            synced_body: None,
+        }
+    }
+}
+
+/// An inline comment on the viewer's pending review as stored on GitHub.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RemoteDraft {
+    pub node_id: String,
     pub path: String,
     pub line: usize,
     pub side: Side,
@@ -254,6 +301,97 @@ pub struct GhFile {
     pub patch: Option<String>,
 }
 
+/// What the diff panel is showing.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum DiffSource {
+    /// The whole PR (the normal, reviewable view).
+    #[default]
+    Full,
+    /// A single commit's changes, by SHA. Read-only.
+    Commit(String),
+    /// Everything after a commit up to the PR head, by SHA. Read-only.
+    Since(String),
+}
+
+impl DiffSource {
+    pub fn is_full(&self) -> bool {
+        matches!(self, Self::Full)
+    }
+
+    /// Short description for status messages and the title bar.
+    pub fn label(&self) -> String {
+        let short = |sha: &str| sha[..sha.len().min(7)].to_string();
+        match self {
+            Self::Full => "full PR diff".to_string(),
+            Self::Commit(sha) => format!("commit {}", short(sha)),
+            Self::Since(sha) => format!("changes since {}", short(sha)),
+        }
+    }
+}
+
+/// A commit in a PR, as shown in the commits panel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Commit {
+    pub sha: String,
+    /// First line of the commit message.
+    pub headline: String,
+    pub author: String,
+    /// ISO 8601 timestamp, e.g. `2026-11-09T07:21:52Z`.
+    pub date: String,
+}
+
+impl Commit {
+    pub fn short_sha(&self) -> &str {
+        &self.sha[..self.sha.len().min(7)]
+    }
+}
+
+/// `GET /repos/{repo}/pulls/{n}/commits` item (only the fields we use).
+#[derive(Debug, Deserialize)]
+pub struct GhCommit {
+    pub sha: String,
+    pub commit: GhCommitDetail,
+    /// The GitHub account, absent when the commit email matches no account.
+    pub author: Option<PrUser>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GhCommitDetail {
+    pub message: String,
+    pub author: Option<GhCommitPerson>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GhCommitPerson {
+    pub name: String,
+    pub date: String,
+}
+
+impl From<GhCommit> for Commit {
+    fn from(c: GhCommit) -> Self {
+        let (name, date) = c
+            .commit
+            .author
+            .map(|p| (p.name, p.date))
+            .unwrap_or_default();
+        Self {
+            sha: c.sha,
+            headline: c.commit.message.lines().next().unwrap_or("").to_string(),
+            // Prefer the GitHub login; fall back to the git author name.
+            author: c.author.map(|u| u.login).unwrap_or(name),
+            date,
+        }
+    }
+}
+
+/// Response of `GET /repos/{repo}/commits/{sha}` and `/compare/{a}...{b}`;
+/// both list the changed files the same way.
+#[derive(Debug, Deserialize)]
+pub struct GhFilesResponse {
+    #[serde(default)]
+    pub files: Vec<GhFile>,
+}
+
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct ExistingComment {
@@ -268,6 +406,27 @@ pub struct ExistingComment {
     pub created_at: String,
     #[serde(default)]
     pub in_reply_to_id: Option<u64>,
+    /// The line the comment was written on. For an outdated comment (`line`
+    /// is `None` because the code has since changed) this is where it used
+    /// to be.
+    #[serde(default)]
+    pub original_line: Option<usize>,
+    /// `"file"` for a comment on a whole file, `"line"` for a line comment.
+    /// Lowercased; `None` where GitHub doesn't say.
+    #[serde(default)]
+    pub subject_type: Option<String>,
+}
+
+impl ExistingComment {
+    /// A comment on a whole file rather than a line.
+    pub fn is_file_level(&self) -> bool {
+        self.subject_type.as_deref() == Some("file")
+    }
+
+    /// A conversation comment or review summary: not attached to any file.
+    pub fn is_pr_level(&self) -> bool {
+        self.path.is_empty()
+    }
 }
 
 #[derive(Debug, Deserialize)]

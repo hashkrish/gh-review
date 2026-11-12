@@ -10,6 +10,18 @@ use crate::{app, components::description_panel::CursorRegion, editor, event, typ
 
 pub type Term = Terminal<CrosstermBackend<std::io::Stdout>>;
 
+/// Keyboard protocol features to request from the terminal.
+///
+/// Reporting every key as an escape code is what lets `Shift+Space` be told
+/// apart from `Space`; alternate keys keep shifted characters (`?`, `G`)
+/// arriving as the characters they produce. Terminals without the kitty
+/// keyboard protocol ignore the request and behave as before.
+pub fn keyboard_enhancement_flags() -> KeyboardEnhancementFlags {
+    KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+        | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+        | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+}
+
 pub fn suspend(terminal: &mut Term) {
     let _ = execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags);
     let _ = execute!(terminal.backend_mut(), LeaveAlternateScreen);
@@ -21,7 +33,7 @@ pub fn resume(terminal: &mut Term) -> Result<()> {
     execute!(terminal.backend_mut(), EnterAlternateScreen)?;
     let _ = execute!(
         terminal.backend_mut(),
-        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+        PushKeyboardEnhancementFlags(keyboard_enhancement_flags())
     );
     terminal.clear()?;
     Ok(())
@@ -53,14 +65,9 @@ pub fn handle_action(
             match result {
                 Ok(edited) if edited.trim() != content.trim() => {
                     let body = format!("```suggestion\n{edited}```");
-                    app.pending_comments.push(types::ReviewComment {
-                        path: file_path,
-                        line,
-                        side,
-                        body,
-                        start_line,
-                        start_side,
-                    });
+                    app.add_draft(types::ReviewComment::new_local(
+                        file_path, line, side, body, start_line, start_side,
+                    ));
                     app.rebuild_display();
                     app.status.success("Suggestion added");
                 }

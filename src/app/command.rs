@@ -90,12 +90,51 @@ define_commands! {
     switch_focus,         "Switch focus: files / diff",    false;
     next_panel,           "Focus next panel",              false;
     prev_panel,           "Focus previous panel",          false;
+    focus_diff,           "Move focus to the diff panel",  false;
     toggle_view,          "Toggle unified / side-by-side", true;
     toggle_comment,       "Toggle comment expand",         false;
     expand_all_comments,  "Expand all comment threads",   true;
     collapse_all_comments,"Collapse all comment threads", true;
     file_filter,          "Filter file list",              false;
     toggle_file_panel,    "Toggle file list panel",        true;
+    sync_drafts,          "Sync drafts with GitHub pending review", true;
+    toggle_viewed,        "Mark file viewed / unviewed",   true;
+    sync_viewed,          "Sync viewed files with GitHub", true;
+    toggle_commits,       "Toggle commits panel",          true;
+
+    // Commits panel
+    commits_down,         "Commits: next",                 false;
+    commits_up,           "Commits: previous",             false;
+    commits_half_page_down, "Commits: half page down",     false;
+    commits_half_page_up, "Commits: half page up",         false;
+    commits_page_down,    "Commits: page down",            false;
+    commits_page_up,      "Commits: page up",              false;
+    commits_first,        "Commits: first",                false;
+    commits_last,         "Commits: last",                 false;
+    commit_view,          "Commits: view this commit's diff", false;
+    commit_since,         "Commits: view changes since this commit", false;
+    commit_open,          "Commits: open commit on GitHub", false;
+    commit_copy_sha,      "Commits: copy commit SHA",      false;
+
+    toggle_comments,      "Toggle comments panel",         true;
+
+    // Comments panel
+    comments_down,        "Comments: next",                false;
+    comments_up,          "Comments: previous",            false;
+    comments_first,       "Comments: first",               false;
+    comments_last,        "Comments: last",                false;
+    comments_half_page_down, "Comments: half page down",   false;
+    comments_half_page_up, "Comments: half page up",       false;
+    comments_page_down,   "Comments: page down",           false;
+    comments_page_up,     "Comments: page up",             false;
+    comments_filter,      "Comments: cycle filter (all / unresolved / resolved / drafts)", false;
+    comment_jump,         "Comments: jump to the comment in the diff", false;
+    comment_reply,        "Comments: reply to the thread", false;
+    comment_resolve,      "Comments: resolve / unresolve the thread", false;
+    comment_edit,         "Comments: edit the draft",      false;
+    comment_discard,      "Comments: discard the draft",   false;
+    comment_open,         "Comments: open the thread on GitHub", false;
+    comment_copy,         "Comments: copy the comment text", false;
     open_command_mode,    "Open command prompt",            false;
     fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;

@@ -34,17 +34,25 @@ pub fn render_unified_row(
 ) -> Line<'static> {
     let base_line = match row {
         DisplayRow::FileHeader {
-            path, collapsed, ..
+            path,
+            collapsed,
+            viewed,
+            ..
         } => {
             let indicator = if *collapsed { "▶" } else { "▼" };
+            let viewed_mark = if *viewed { " ✓ viewed" } else { "" };
             Line::from(vec![Span::styled(
-                format!("{indicator} ─── {path} ───"),
+                format!("{indicator} ─── {path} ───{viewed_mark}"),
                 Theme::file_header(),
             )])
         }
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
+        DisplayRow::SectionHeader { text } => Line::from(vec![Span::styled(
+            format!("▼ ─── {text} ───"),
+            Theme::file_header(),
+        )]),
         DisplayRow::DiffLine { line, .. } => render_unified_diff_line(line),
         DisplayRow::ExpandHint {
             available_lines, ..
@@ -66,6 +74,7 @@ pub fn render_unified_row(
             is_resolved,
             reply_count,
             body_preview,
+            note,
             ..
         } => render_collapsed_header(
             author,
@@ -73,6 +82,7 @@ pub fn render_unified_row(
             *is_resolved,
             *reply_count,
             body_preview,
+            note.as_deref(),
             _width,
         ),
 
@@ -115,6 +125,7 @@ fn render_collapsed_header(
     is_resolved: bool,
     reply_count: usize,
     body_preview: &str,
+    note: Option<&str>,
     width: u16,
 ) -> Line<'static> {
     let (bg, border_color, fg) = if is_pending {
@@ -143,6 +154,9 @@ fn render_collapsed_header(
         format!(" ▶ 📝 pending  {body_preview}")
     } else {
         let mut h = format!(" ▶ 💬 {author}");
+        if let Some(note) = note {
+            h.push_str(&format!(" · {note}"));
+        }
         if is_resolved {
             h.push_str(" ✓ Resolved");
         }
@@ -166,14 +180,16 @@ fn render_collapsed_header(
 
 // ── Selection overlay ──────────────────────────────────────────────────
 
+/// Highlight the cursor row. This only restyles the existing spans: adding a
+/// marker character would push the selected row's text one column to the
+/// right of every other row.
 fn apply_selection(line: Line<'static>) -> Line<'static> {
-    let mut spans = vec![Span::styled("▌", Theme::selected_cursor())];
-    spans.extend(
+    Line::from(
         line.spans
             .into_iter()
-            .map(|s| Span::styled(s.content, s.style.patch(Theme::selected_line()))),
-    );
-    Line::from(spans)
+            .map(|s| Span::styled(s.content, s.style.patch(Theme::selected_line())))
+            .collect::<Vec<_>>(),
+    )
 }
 
 // ── Unified diff line ──────────────────────────────────────────────────
@@ -323,3 +339,6 @@ fn truncate_spans(spans: &[Span<'static>], max_chars: usize) -> Vec<Span<'static
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

@@ -80,6 +80,7 @@ gh-dash (browse PRs)
 | `gg` / `G` | Go to first / last line |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Full page down / up |
+| `Space` / `Shift+Space` | Full page down / up (`Shift+Space` needs a terminal with the kitty keyboard protocol, e.g. kitty, Ghostty, WezTerm, foot) |
 | `H` / `M` / `L` | Cursor to screen top / middle / bottom |
 | `]` / `}` | Next hunk (diff) / next section (description) |
 | `[` / `{` | Previous hunk (diff) / previous section (description) |
@@ -97,8 +98,11 @@ gh-dash (browse PRs)
 | `h` / `←` | Focus previous panel |
 | `l` / `→` | Focus next panel |
 | `Tab` | Cycle panel focus |
+| `Enter` | In the file list: move focus to the diff |
 | `Esc` | Close description panel (when focused) |
 | `b` | Toggle file list panel |
+| `p` | Toggle commits panel |
+| `i` | Toggle comments panel |
 
 Panels: **File List** ↔ **Diff** ↔ **Description** (when open). The file list can be hidden with `b`, which gives the diff the full width.
 
@@ -122,6 +126,7 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `zo` / `zc` | Expand / collapse file fold |
 | `e` | Suggest change on current line |
 | `E` | Expand context around cursor (+10 lines) |
+| `m` | Mark file viewed / unviewed (diff or file list; syncs with GitHub) |
 
 ### Review
 
@@ -138,6 +143,72 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `y` | Accept suggestion (apply as commit) |
 
 Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
+
+#### Commits panel
+
+`p` opens a right-hand drawer listing the PR's commits (short SHA, headline, author, age); it shares the drawer with the description panel, so opening one closes the other. The first row, **All changes**, is the normal full PR diff.
+
+| Key (in the panel) | Action |
+|-----|--------|
+| `j` / `k` | Move through the commits |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `Ctrl+F` / `Ctrl+B`, `Space` / `Shift+Space` | Full page down / up |
+| `gg` / `G` | Jump to the first row ("All changes") / the last commit |
+| `Enter` | View just that commit's diff (on **All changes**: back to the full PR diff) |
+| `s` | View everything *since* that commit, up to the PR head (what's new since you last looked) |
+| `y` | Copy the commit's full SHA (platform clipboard tool, else the OSC 52 terminal sequence) |
+| `o` | Open the commit on GitHub |
+| `p` / `q` / `Esc` | Close the panel |
+
+A commit or since view is **read-only**: it is marked in the title bar, review comments are hidden (they anchor to the full diff's lines), and commenting, suggesting, expanding context and the viewed mark are disabled until you return to **All changes**. Your drafts and viewed marks are kept. GitHub lists at most 300 files per commit view.
+
+#### Where comments appear in the diff
+
+- **On their line** when they have one.
+- **Outdated comments** (written against code that has since changed, so GitHub no longer gives them a line) sit at the end of their own file's section, tagged `outdated · was line N`.
+- **File-level comments** sit at the top of their file, tagged `file comment`.
+- **A line comment whose line isn't in the shown diff** (for example on a file without a patch) sits at the end of its file, tagged `line N isn't in the shown diff`, rather than disappearing.
+- **Conversation comments and review summaries**, which belong to no file, are collected under a `Conversation and review comments` heading after the last file.
+
+A folded file hides its comments along with its diff.
+
+#### Comments panel
+
+`i` opens a right-hand drawer listing every review thread in the PR plus your pending drafts, in diff order, so comments can be found and handled without scrolling the diff. It shares the drawer with the description and commits panels (opening one closes the others).
+
+Each entry shows its status (`○` open, `✓` resolved, `✎` your draft), `file:line`, the author, a reply count and a preview of the root comment.
+
+| Key (in the panel) | Action | Applies to |
+|-----|--------|------------|
+| `j` / `k`, `gg` / `G`, `Ctrl+D` / `Ctrl+U`, `Ctrl+F` / `Ctrl+B`, `Space` | Move through the list | all |
+| `Enter` | Jump to the comment in the diff (unfolds its file; leaves a commit view) | all |
+| `r` | Reply to the thread | threads |
+| `R` | Resolve / unresolve the thread | threads |
+| `e` | Edit the draft | drafts |
+| `x` | Discard the draft | drafts |
+| `o` | Open the thread on GitHub | threads |
+| `y` | Copy the comment text | all |
+| `f` | Cycle the filter: all → unresolved → resolved → drafts | — |
+| `i` / `q` / `Esc` | Close the panel | — |
+
+The list updates as comments change, so resolving a thread, posting a reply or discarding a draft shows up straight away. Entries are labelled by where they sit: `file:line`, `file (outdated, was :12)`, `file (file)` for a whole-file comment, or `PR conversation`. Conversation comments are listed last, appear only under the `all` filter, and can be jumped to, copied and opened, but not replied to or resolved from here (they aren't review threads).
+
+#### Viewed files
+
+`m` toggles GitHub's per-file "Viewed" checkbox for the file at the cursor (or selected in the file list), the same checkbox as on github.com. Viewed files show a `✓` in the file list and header, and fold like on github.com; unmarking unfolds them.
+
+The state is synced both ways: toggling pushes to GitHub immediately, and GitHub's state is pulled once the file list loads and with `:sync_viewed`. If a push fails, the toggle is reverted and the error is shown.
+
+#### Pending review sync
+
+Your draft comments are kept in sync with your pending review on GitHub, in both directions:
+
+- Adding, editing, or discarding a draft updates your pending review on GitHub immediately, so it also shows up on github.com and in other clients.
+- Drafts created or changed on GitHub are pulled in when a PR opens, and again with `:sync_drafts`.
+- If the same comment was edited on both sides (or deleted on GitHub but edited here), a prompt shows both versions: `l` keeps yours, `g` keeps GitHub's, `Esc` decides later. Submitting is blocked until conflicts are resolved.
+- If a push fails (for example, you're offline), the draft stays local and is retried on the next sync or when you submit.
+
+GitHub allows one pending review per user per PR, and only shows it to you. Submitting from gh-review submits that pending review, including any comments you added to it on github.com.
 
 ### Other
 

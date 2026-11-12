@@ -17,6 +17,7 @@ pub enum DisplayRow {
         path: String,
         file_idx: usize,
         collapsed: bool,
+        viewed: bool,
     },
     HunkHeader {
         text: String,
@@ -46,6 +47,13 @@ pub enum DisplayRow {
         reply_count: usize,
         body_preview: String,
         is_reply: bool,
+        /// Why the thread isn't on a diff line ("outdated · was line 12"),
+        /// for threads shown at the end of a file instead of inline.
+        note: Option<String>,
+    },
+    /// A heading for comments that belong to no file in the diff.
+    SectionHeader {
+        text: String,
     },
     CommentBodyLine {
         line: Line<'static>,
@@ -147,6 +155,7 @@ fn emit_expanded_thread(
             reply_count: 0,
             body_preview: String::new(),
             is_reply: true,
+            note: None,
         });
         let reply_lines = render_markdown_to_lines(&reply.body);
         rows.extend(wrap_body_lines(
@@ -224,6 +233,90 @@ fn wrap_body_lines(
     rows
 }
 
+type Threads<'a> = std::collections::BTreeMap<u64, Vec<&'a ExistingComment>>;
+
+/// Group comments into threads by root comment id (oldest first).
+fn group_threads<'a>(comments: impl IntoIterator<Item = &'a ExistingComment>) -> Threads<'a> {
+    let mut threads = Threads::new();
+    for c in comments {
+        threads
+            .entry(c.in_reply_to_id.unwrap_or(c.id))
+            .or_default()
+            .push(c);
+    }
+    threads
+}
+
+/// What to say about a comment shown away from a diff line. `None` for PR
+/// conversation comments and review summaries, which have no place in a file.
+fn anchor_note(c: &ExistingComment) -> Option<String> {
+    if c.is_file_level() {
+        return Some("file comment".to_string());
+    }
+    if c.is_pr_level() {
+        return None;
+    }
+    Some(match (c.line, c.original_line) {
+        (None, Some(n)) => format!("outdated · was line {n}"),
+        (None, None) => "outdated".to_string(),
+        (Some(n), _) => format!("line {n} isn't in the shown diff"),
+    })
+}
+
+/// Emit threads that aren't attached to a diff line: each as a header (with
+/// a note saying why) followed by its body when open.
+fn emit_threads(
+    rows: &mut Vec<DisplayRow>,
+    threads: &Threads,
+    thread_map: &HashMap<u64, ThreadInfo>,
+    expanded_threads: &std::collections::HashSet<u64>,
+    body_max_width: usize,
+) {
+    for (root_id, thread_comments) in threads {
+        let root = thread_comments[0];
+        let reply_count = thread_comments.len().saturating_sub(1);
+        let thread_info = thread_map.get(root_id);
+        let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
+        let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
+        let default_open = !is_resolved;
+        let is_expanded = if expanded_threads.contains(root_id) {
+            !default_open
+        } else {
+            default_open
+        };
+        let preview = root.body.lines().next().unwrap_or("").to_string();
+
+        rows.push(DisplayRow::CommentHeader {
+            author: root.user.login.clone(),
+            is_pending: false,
+            github_id: Some(root.id),
+            pending_idx: None,
+            thread_root_id: Some(*root_id),
+            thread_node_id,
+            is_resolved,
+            expanded: is_expanded,
+            reply_count,
+            body_preview: preview,
+            is_reply: false,
+            note: anchor_note(root),
+        });
+
+        if is_expanded {
+            let replies: Vec<&ExistingComment> = thread_comments.iter().skip(1).copied().collect();
+            emit_expanded_thread(
+                rows,
+                &root.body,
+                &replies,
+                is_resolved,
+                false,
+                *root_id,
+                body_max_width,
+                None,
+            );
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn build_display_rows(
     files: &[DiffFile],
@@ -238,6 +331,9 @@ pub fn build_display_rows(
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
     let body_max_width = layout::comment_body_width(wrap_width);
+    // Thread roots already shown on a diff line.
+    let mut placed_roots: std::collections::HashSet<u64> = std::collections::HashSet::new();
+    let real_comments = |c: &&ExistingComment| !graphite::is_graphite_stack_comment(&c.body);
 
     for (file_idx, file) in files.iter().enumerate() {
         let collapsed = collapsed_files.contains(&file_idx);
@@ -245,11 +341,27 @@ pub fn build_display_rows(
             path: file.path.clone(),
             file_idx,
             collapsed,
+            viewed: file.viewed,
         });
 
         if collapsed {
             continue;
         }
+
+        // Comments on the whole file sit at the top of its section.
+        let file_level = group_threads(
+            existing_comments
+                .iter()
+                .filter(real_comments)
+                .filter(|c| c.path == file.path && c.is_file_level()),
+        );
+        emit_threads(
+            &mut rows,
+            &file_level,
+            thread_map,
+            expanded_threads,
+            body_max_width,
+        );
 
         for (hunk_idx, hunk) in file.hunks.iter().enumerate() {
             rows.push(DisplayRow::HunkHeader {
@@ -294,6 +406,9 @@ pub fn build_display_rows(
                     }
 
                     for (root_id, thread_comments) in &threads {
+                        // Remember it landed on a line, so it isn't repeated
+                        // among the file's unplaced comments below.
+                        placed_roots.insert(*root_id);
                         let root = thread_comments[0];
                         let reply_count = thread_comments.len().saturating_sub(1);
                         let thread_info = thread_map.get(root_id);
@@ -319,6 +434,7 @@ pub fn build_display_rows(
                             reply_count,
                             body_preview: preview,
                             is_reply: false,
+                            note: None,
                         });
 
                         if is_expanded {
@@ -361,6 +477,7 @@ pub fn build_display_rows(
                             reply_count: 0,
                             body_preview: preview,
                             is_reply: false,
+                            note: None,
                         });
 
                         if is_expanded {
@@ -385,68 +502,49 @@ pub fn build_display_rows(
                 }
             }
         }
+
+        // Comments on this file that didn't land on a diff line (outdated, or
+        // on a line the diff doesn't show) go at the end of its section
+        // instead of being lost.
+        let unplaced = group_threads(existing_comments.iter().filter(real_comments).filter(|c| {
+            c.path == file.path
+                && !c.is_file_level()
+                && !placed_roots.contains(&c.in_reply_to_id.unwrap_or(c.id))
+        }));
+        emit_threads(
+            &mut rows,
+            &unplaced,
+            thread_map,
+            expanded_threads,
+            body_max_width,
+        );
     }
 
-    // Collect file-level comments (line: None) and review body comments.
-    // Filter out auto-generated Graphite stack comments.
-    let orphan_comments: Vec<&ExistingComment> = existing_comments
-        .iter()
-        .filter(|c| c.line.is_none() && !graphite::is_graphite_stack_comment(&c.body))
-        .chain(review_body_comments.iter())
-        .collect();
-
-    if !orphan_comments.is_empty() {
-        let mut threads: std::collections::BTreeMap<u64, Vec<&ExistingComment>> =
-            std::collections::BTreeMap::new();
-        for ec in &orphan_comments {
-            let root_id = ec.in_reply_to_id.unwrap_or(ec.id);
-            threads.entry(root_id).or_default().push(ec);
-        }
-
-        for (root_id, thread_comments) in &threads {
-            let root = thread_comments[0];
-            let reply_count = thread_comments.len().saturating_sub(1);
-            let thread_info = thread_map.get(root_id);
-            let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
-            let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
-            let default_open = !is_resolved;
-            let is_expanded = if expanded_threads.contains(root_id) {
-                !default_open
-            } else {
-                default_open
-            };
-            let preview = root.body.lines().next().unwrap_or("").to_string();
-
-            rows.push(DisplayRow::CommentHeader {
-                author: root.user.login.clone(),
-                is_pending: false,
-                github_id: Some(root.id),
-                pending_idx: None,
-                thread_root_id: Some(*root_id),
-                thread_node_id,
-                is_resolved,
-                expanded: is_expanded,
-                reply_count,
-                body_preview: preview,
-                is_reply: false,
-            });
-
-            if is_expanded {
-                let replies: Vec<&ExistingComment> =
-                    thread_comments.iter().skip(1).copied().collect();
-                emit_expanded_thread(
-                    &mut rows,
-                    &root.body,
-                    &replies,
-                    is_resolved,
-                    false,
-                    *root_id,
-                    body_max_width,
-                    None,
-                );
-            }
-        }
+    // Comments that belong to no file in the diff: PR conversation comments,
+    // review summaries, and comments on files the PR no longer changes.
+    let in_diff: std::collections::HashSet<&str> = files.iter().map(|f| f.path.as_str()).collect();
+    let trailing = group_threads(
+        existing_comments
+            .iter()
+            .filter(real_comments)
+            .filter(|c| !in_diff.contains(c.path.as_str()))
+            .chain(review_body_comments.iter()),
+    );
+    if !trailing.is_empty() {
+        rows.push(DisplayRow::SectionHeader {
+            text: "Conversation and review comments".to_string(),
+        });
+        emit_threads(
+            &mut rows,
+            &trailing,
+            thread_map,
+            expanded_threads,
+            body_max_width,
+        );
     }
 
     rows
 }
+
+#[cfg(test)]
+mod placement_tests;
